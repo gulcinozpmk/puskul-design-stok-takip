@@ -11,9 +11,10 @@ import {
 } from '../services/supabaseStorage';
 import { formatCurrency } from '../utils/helpers';
 import ExcelImport from './ExcelImport';
+import QRScanner from './QRScanner';
 
 export default function StockManagement() {
-  const [activeTab, setActiveTab] = useState('existing'); // 'existing' veya 'new'
+  const [activeTab, setActiveTab] = useState('existing');
   const [stock, setStock] = useState([]);
   const [brands, setBrands] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,20 +29,19 @@ export default function StockManagement() {
   const [colorCodes, setColorCodes] = useState([]);
   const [selectedColorCode, setSelectedColorCode] = useState('');
   const [quantityChange, setQuantityChange] = useState('');
-  const [operation, setOperation] = useState('add'); // 'add' veya 'subtract'
+  const [operation, setOperation] = useState('add');
 
   // Yeni Ürün için
   const [newProduct, setNewProduct] = useState({
-    brand: '',
-    model: '',
-    colorCode: '',
-    quantity: '',
-    price: '',
+    brand: '', model: '', colorCode: '', quantity: '', price: '', barcode: '',
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Barkod düzenleme
+  const [editingBarcode, setEditingBarcode] = useState(null); // { id, barcode }
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [barcodeScanTarget, setBarcodeScanTarget] = useState(null); // 'new' veya item.id
+
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     const freshStock = await getStock();
@@ -50,7 +50,6 @@ export default function StockManagement() {
     setBrands([...freshBrands]);
   };
 
-  // Filtre için marka seçildiğinde modelleri getir
   useEffect(() => {
     const loadFilterModels = async () => {
       if (filterBrand) {
@@ -65,146 +64,117 @@ export default function StockManagement() {
     loadFilterModels();
   }, [filterBrand]);
 
-  // Marka seçildiğinde modelleri getir
   useEffect(() => {
     const loadModels = async () => {
       if (selectedBrand) {
         const brandModels = await getModelsByBrand(selectedBrand);
         setModels(brandModels);
-        setSelectedModel('');
-        setColorCodes([]);
-        setSelectedColorCode('');
+        setSelectedModel(''); setColorCodes([]); setSelectedColorCode('');
       } else {
-        setModels([]);
-        setSelectedModel('');
-        setColorCodes([]);
-        setSelectedColorCode('');
+        setModels([]); setSelectedModel(''); setColorCodes([]); setSelectedColorCode('');
       }
     };
     loadModels();
   }, [selectedBrand]);
 
-  // Model seçildiğinde renk kodlarını getir
   useEffect(() => {
     const loadColorCodes = async () => {
       if (selectedBrand && selectedModel) {
         const colors = await getColorCodesByBrandModel(selectedBrand, selectedModel);
-        setColorCodes(colors);
-        setSelectedColorCode('');
+        setColorCodes(colors); setSelectedColorCode('');
       } else {
-        setColorCodes([]);
-        setSelectedColorCode('');
+        setColorCodes([]); setSelectedColorCode('');
       }
     };
     loadColorCodes();
   }, [selectedModel]);
 
-  // Mevcut ürün için miktar güncelleme
+  // Barkod tarama sonucu
+  const handleBarcodeScan = (rawValue) => {
+    setShowBarcodeScanner(false);
+    if (barcodeScanTarget === 'new') {
+      setNewProduct(prev => ({ ...prev, barcode: rawValue }));
+    } else if (barcodeScanTarget !== null) {
+      setEditingBarcode({ id: barcodeScanTarget, barcode: rawValue });
+    }
+    setBarcodeScanTarget(null);
+  };
+
+  // Barkod kaydet
+  const handleSaveBarcode = async (itemId) => {
+    try {
+      await updateStock(itemId, { barcode: editingBarcode.barcode });
+      await loadData();
+      setEditingBarcode(null);
+      alert('Barkod kaydedildi!');
+    } catch (error) {
+      alert('Hata: ' + error.message);
+    }
+  };
+
   const handleExistingProductUpdate = async (e) => {
     e.preventDefault();
-
     if (!selectedBrand || !selectedModel || !selectedColorCode) {
-      alert('Lütfen ürün seçin!');
-      return;
+      alert('Lütfen ürün seçin!'); return;
     }
-
     const qty = parseInt(quantityChange);
-    if (qty <= 0) {
-      alert('Miktar 0\'dan büyük olmalıdır!');
-      return;
-    }
+    if (qty <= 0) { alert('Miktar 0\'dan büyük olmalıdır!'); return; }
 
     try {
       const stockData = await getStock();
       const stockItem = stockData.find(
-        s => s.brand === selectedBrand &&
-          s.model === selectedModel &&
-          s.colorCode === selectedColorCode
+        s => s.brand === selectedBrand && s.model === selectedModel && s.colorCode === selectedColorCode
       );
+      if (!stockItem) { alert('Ürün bulunamadı!'); return; }
 
-      if (!stockItem) {
-        alert('Ürün bulunamadı!');
-        return;
-      }
+      let newQuantity = operation === 'add'
+        ? stockItem.quantity + qty
+        : stockItem.quantity - qty;
 
-      let newQuantity;
-      if (operation === 'add') {
-        newQuantity = stockItem.quantity + qty;
-      } else {
-        newQuantity = stockItem.quantity - qty;
-        if (newQuantity < 0) {
-          alert('Stok miktarı negatif olamaz!');
-          return;
-        }
-      }
+      if (newQuantity < 0) { alert('Stok miktarı negatif olamaz!'); return; }
 
       await updateStock(stockItem.id, { quantity: newQuantity });
       await loadData();
-
-      // Formu temizle
-      setSelectedBrand('');
-      setSelectedModel('');
-      setSelectedColorCode('');
-      setQuantityChange('');
-      setOperation('add');
-
+      setSelectedBrand(''); setSelectedModel(''); setSelectedColorCode('');
+      setQuantityChange(''); setOperation('add');
       alert(`Stok başarıyla ${operation === 'add' ? 'artırıldı' : 'azaltıldı'}!`);
     } catch (error) {
       alert('Hata: ' + error.message);
     }
   };
 
-  // Yeni ürün ekleme
   const handleNewProductSubmit = async (e) => {
     e.preventDefault();
-
     if (!newProduct.brand || !newProduct.model || !newProduct.colorCode || !newProduct.quantity) {
-      alert('Lütfen tüm zorunlu alanları doldurun!');
-      return;
+      alert('Lütfen tüm zorunlu alanları doldurun!'); return;
     }
-
     try {
-      // Marka yoksa ekle
       const currentBrands = await getBrands();
-      if (!currentBrands.includes(newProduct.brand)) {
-        await addBrand(newProduct.brand);
-      }
+      if (!currentBrands.includes(newProduct.brand)) await addBrand(newProduct.brand);
 
-      // Önce aynı ürün var mı kontrol et
       const stockData = await getStock();
       const existingProduct = stockData.find(
-        item => item.brand === newProduct.brand &&
-          item.model === newProduct.model &&
-          item.colorCode === newProduct.colorCode
+        item => item.brand === newProduct.brand && item.model === newProduct.model && item.colorCode === newProduct.colorCode
       );
 
       if (existingProduct) {
-        // Ürün varsa miktarı artır
         const newQuantity = existingProduct.quantity + parseInt(newProduct.quantity);
         await updateStock(existingProduct.id, { quantity: newQuantity });
         alert(`Mevcut ürünün miktarı ${existingProduct.quantity} → ${newQuantity} olarak güncellendi!`);
       } else {
-        // Ürün yoksa yeni ekle
         await addStock({
           brand: newProduct.brand,
           model: newProduct.model,
           colorCode: newProduct.colorCode,
           quantity: parseInt(newProduct.quantity),
           price: parseFloat(newProduct.price) || 0,
+          barcode: newProduct.barcode || null,
         });
         alert('Yeni ürün başarıyla eklendi!');
       }
 
       await loadData();
-
-      // Formu temizle
-      setNewProduct({
-        brand: '',
-        model: '',
-        colorCode: '',
-        quantity: '',
-        price: '',
-      });
+      setNewProduct({ brand: '', model: '', colorCode: '', quantity: '', price: '', barcode: '' });
     } catch (error) {
       alert('Hata: ' + error.message);
     }
@@ -221,24 +191,16 @@ export default function StockManagement() {
     }
   };
 
-  // Filtreleme
   const filteredStock = stock.filter(item => {
-    const matchesSearch =
-      item.colorCode && item.colorCode.toLowerCase().includes(searchTerm.toLowerCase());
-
+    const matchesSearch = item.colorCode && item.colorCode.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesBrand = filterBrand === '' || item.brand === filterBrand;
     const matchesModel = filterModel === '' || item.model === filterModel;
-
     return matchesSearch && matchesBrand && matchesModel;
   });
 
-  // Sıralama: Marka → Model → Renk Kodu
   const sortedStock = [...filteredStock].sort((a, b) => {
-    // Önce markaya göre
     if (a.brand !== b.brand) return a.brand.localeCompare(b.brand);
-    // Sonra modele göre
     if (a.model !== b.model) return a.model.localeCompare(b.model);
-    // Son olarak renk koduna göre
     return String(a.colorCode).localeCompare(String(b.colorCode));
   });
 
@@ -248,23 +210,25 @@ export default function StockManagement() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-800">Stok Yönetimi</h1>
 
+      {/* Barkod Tarayıcı Modal */}
+      {showBarcodeScanner && (
+        <QRScanner
+          onScan={handleBarcodeScan}
+          onClose={() => { setShowBarcodeScanner(false); setBarcodeScanTarget(null); }}
+        />
+      )}
+
       {/* Tab Buttons */}
       <div className="bg-white rounded-lg shadow-md p-2 flex gap-2">
         <button
           onClick={() => setActiveTab('existing')}
-          className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-colors ${activeTab === 'existing'
-            ? 'bg-blue-600 text-white'
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+          className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-colors ${activeTab === 'existing' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
         >
           📦 Mevcut Ürün (Miktar Güncelle)
         </button>
         <button
           onClick={() => setActiveTab('new')}
-          className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-colors ${activeTab === 'new'
-            ? 'bg-green-600 text-white'
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+          className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-colors ${activeTab === 'new' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
         >
           ✨ Yeni Ürün Ekle
         </button>
@@ -274,98 +238,55 @@ export default function StockManagement() {
       {activeTab === 'existing' && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Mevcut Ürün Miktarını Güncelle</h2>
-
           <form onSubmit={handleExistingProductUpdate} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Marka */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
-                <select
-                  value={selectedBrand}
-                  onChange={(e) => setSelectedBrand(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
+                <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
                   <option value="">Marka Seçin</option>
-                  {brands.map(brand => (
-                    <option key={brand} value={brand}>{brand}</option>
-                  ))}
+                  {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
                 </select>
               </div>
-
-              {/* Model */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={!selectedBrand}
-                  required
-                >
+                <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={!selectedBrand} required>
                   <option value="">Model Seçin</option>
-                  {models.map(model => (
-                    <option key={model} value={model}>{model}</option>
-                  ))}
+                  {models.map(model => <option key={model} value={model}>{model}</option>)}
                 </select>
               </div>
-
-              {/* Renk Kodu */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu *</label>
-                <select
-                  value={selectedColorCode}
-                  onChange={(e) => setSelectedColorCode(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={!selectedModel}
-                  required
-                >
+                <select value={selectedColorCode} onChange={(e) => setSelectedColorCode(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={!selectedModel} required>
                   <option value="">Renk Kodu Seçin</option>
                   {colorCodes.map(item => (
-                    <option key={item.id} value={item.colorCode}>
-                      {item.colorCode} (Stok: {item.quantity})
-                    </option>
+                    <option key={item.id} value={item.colorCode}>{item.colorCode} (Stok: {item.quantity})</option>
                   ))}
                 </select>
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* İşlem Tipi */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">İşlem *</label>
-                <select
-                  value={operation}
-                  onChange={(e) => setOperation(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
+                <select value={operation} onChange={(e) => setOperation(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                   <option value="add">➕ Stok Ekle (Alım)</option>
                   <option value="subtract">➖ Stok Azalt (Elle Düzeltme)</option>
                 </select>
               </div>
-
-              {/* Miktar */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Miktar *</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={quantityChange}
-                  onChange={(e) => setQuantityChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="0"
-                  required
-                />
+                <input type="number" min="1" value={quantityChange} onChange={(e) => setQuantityChange(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="0" required />
               </div>
             </div>
-
-            <button
-              type="submit"
-              className={`w-full font-semibold py-3 rounded-lg transition duration-200 flex items-center justify-center ${operation === 'add'
-                ? 'bg-green-600 hover:bg-green-700 text-white'
-                : 'bg-orange-600 hover:bg-orange-700 text-white'
-                }`}
-            >
+            <button type="submit"
+              className={`w-full font-semibold py-3 rounded-lg transition duration-200 ${operation === 'add' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-orange-600 hover:bg-orange-700 text-white'}`}>
               {operation === 'add' ? '➕ Stok Ekle' : '➖ Stok Azalt'}
             </button>
           </form>
@@ -376,151 +297,104 @@ export default function StockManagement() {
       {activeTab === 'new' && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Yeni Ürün Ekle</h2>
-
           <form onSubmit={handleNewProductSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Marka */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
-                <input
-                  type="text"
-                  value={newProduct.brand}
+                <input type="text" value={newProduct.brand}
                   onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Örn: Lanoso"
-                  list="brandList"
-                  required
-                />
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="Örn: Lanoso" list="brandList" required />
                 <datalist id="brandList">
-                  {brands.map(brand => (
-                    <option key={brand} value={brand} />
-                  ))}
+                  {brands.map(brand => <option key={brand} value={brand} />)}
                 </datalist>
-                <p className="text-xs text-gray-500 mt-1">Mevcut marka seçebilir veya yeni girebilirsiniz</p>
               </div>
-
-              {/* Model */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
-                <input
-                  type="text"
-                  value={newProduct.model}
+                <input type="text" value={newProduct.model}
                   onChange={(e) => setNewProduct({ ...newProduct, model: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Örn: Alara"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">Model adını girin</p>
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="Örn: Alara" required />
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Renk Kodu */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu *</label>
-                <input
-                  type="text"
-                  value={newProduct.colorCode}
+                <input type="text" value={newProduct.colorCode}
                   onChange={(e) => setNewProduct({ ...newProduct, colorCode: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Örn: 101, A345, 3948"
-                  required
-                />
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="Örn: 101, A345" required />
               </div>
-
-              {/* Miktar */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Başlangıç Miktarı *</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={newProduct.quantity}
+                <input type="number" min="0" value={newProduct.quantity}
                   onChange={(e) => setNewProduct({ ...newProduct, quantity: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="0"
-                  required
-                />
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="0" required />
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Birim Fiyat */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Birim Fiyat (₺)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newProduct.price}
+                <input type="number" step="0.01" min="0" value={newProduct.price}
                   onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="0.00"
-                />
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="0.00" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Barkod</label>
+                <div className="flex gap-2">
+                  <input type="text" value={newProduct.barcode}
+                    onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    placeholder="Barkod numarası" />
+                  <button type="button"
+                    onClick={() => { setBarcodeScanTarget('new'); setShowBarcodeScanner(true); }}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm"
+                    title="Barkod Tara">
+                    📷
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Kamerayla okutabilir veya elle girebilirsiniz</p>
               </div>
             </div>
-
-            <button
-              type="submit"
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition duration-200 flex items-center justify-center"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
+            <button type="submit"
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition duration-200">
               Yeni Ürün Ekle
             </button>
           </form>
         </div>
       )}
-      
-      {/* Excel Import Bölümü */}
-      {activeTab === 'new' && (
-        <ExcelImport onImportComplete={loadData} />
-      )}
 
-      {/* Filtreler ve Arama */}
+      {activeTab === 'new' && <ExcelImport onImportComplete={loadData} />}
+
+      {/* Filtreler */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Marka</label>
-            <select
-              value={filterBrand}
-              onChange={(e) => setFilterBrand(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
+            <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
               <option value="">Tüm Markalar</option>
-              {brands.map(brand => (
-                <option key={brand} value={brand}>{brand}</option>
-              ))}
+              {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
             </select>
           </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Model</label>
-            <select
-              value={filterModel}
-              onChange={(e) => setFilterModel(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={!filterBrand}
-            >
+            <select value={filterModel} onChange={(e) => setFilterModel(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              disabled={!filterBrand}>
               <option value="">Tüm Modeller</option>
-              {availableFilterModels.map(model => (
-                <option key={model} value={model}>{model}</option>
-              ))}
+              {availableFilterModels.map(model => <option key={model} value={model}>{model}</option>)}
             </select>
           </div>
-
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu</label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Renk kodu ile ara... (örn: 901)"
-            />
+            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="Renk kodu ile ara..." />
           </div>
         </div>
-
         <div className="mt-4 flex justify-between items-center text-sm text-gray-600">
           <span>{sortedStock.length} ürün listeleniyor</span>
           <span className="font-semibold">Toplam Değer: {formatCurrency(totalValue)}</span>
@@ -534,11 +408,12 @@ export default function StockManagement() {
         ) : (
           <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0">
                 <tr>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Marka</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Model</th>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Renk Kodu</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Barkod</th>
                   <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Miktar</th>
                   <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Birim Fiyat</th>
                   <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Toplam</th>
@@ -547,32 +422,56 @@ export default function StockManagement() {
               </thead>
               <tbody>
                 {sortedStock.map((item, index) => (
-                  <tr key={`${item.brand}-${item.model}-${item.colorCode}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={`${item.brand}-${item.model}-${item.colorCode}-${index}`}
+                    className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="py-3 px-4 text-sm text-gray-800 font-medium">{item.brand}</td>
                     <td className="py-3 px-4 text-sm text-gray-800">{item.model}</td>
                     <td className="py-3 px-4 text-sm text-gray-800">{item.colorCode || '-'}</td>
+                    <td className="py-3 px-4 text-sm">
+                      {editingBarcode && editingBarcode.id === item.id ? (
+                        <div className="flex gap-1 items-center">
+                          <input
+                            type="text"
+                            value={editingBarcode.barcode}
+                            onChange={(e) => setEditingBarcode({ ...editingBarcode, barcode: e.target.value })}
+                            className="w-32 px-2 py-1 border border-blue-400 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                          />
+                          <button onClick={() => { setBarcodeScanTarget(item.id); setShowBarcodeScanner(true); }}
+                            className="text-blue-600 hover:text-blue-800 text-xs px-1" title="Tara">📷</button>
+                          <button onClick={() => handleSaveBarcode(item.id)}
+                            className="text-green-600 hover:text-green-800 font-bold text-sm" title="Kaydet">✓</button>
+                          <button onClick={() => setEditingBarcode(null)}
+                            className="text-red-400 hover:text-red-600 font-bold text-sm" title="İptal">✕</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500 text-xs">{item.barcode || '-'}</span>
+                          <button
+                            onClick={() => setEditingBarcode({ id: item.id, barcode: item.barcode || '' })}
+                            className="text-gray-400 hover:text-blue-600 transition ml-1" title="Barkod Düzenle">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-sm text-right">
-                      <span className={`inline-flex px-2 py-1 rounded ${item.quantity < 10 ? 'bg-red-100 text-red-800' :
-                        item.quantity < 50 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
+                      <span className={`inline-flex px-2 py-1 rounded ${item.quantity < 10 ? 'bg-red-100 text-red-800' : item.quantity < 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
                         {item.quantity}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-right text-gray-800">
-                      {formatCurrency(item.price)}
-                    </td>
+                    <td className="py-3 px-4 text-sm text-right text-gray-800">{formatCurrency(item.price)}</td>
                     <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
                       {formatCurrency(item.quantity * item.price)}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="text-red-600 hover:text-red-800 transition"
-                        title="Sil"
-                      >
+                      <button onClick={() => handleDelete(item.id)}
+                        className="text-red-600 hover:text-red-800 transition" title="Sil">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
                     </td>

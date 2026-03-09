@@ -285,3 +285,20 @@ export const getColorCodesByBrandModel = async (brandName, modelName) => {
     return [];
   }
 };
+// ============= BARCODE (Barkod) =============
+
+export const getProductByBarcode = async (barcode) => {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('barcode', barcode)
+      .single();
+
+    if (error) return null;
+    return data;
+  } catch (error) {
+    console.error('getProductByBarcode error:', error);
+    return null;
+  }
+};

@@ -5,11 +5,13 @@ import {
   getBrands,
   getModelsByBrand,
   getColorCodesByBrandModel,
+  getStock,
   decreaseStock,
   updateSale,
   deleteSale
 } from '../services/supabaseStorage';
 import { formatCurrency, formatDate } from '../utils/helpers';
+import QRScanner from './QRScanner';
 
 export default function SalesEntry() {
   const [brands, setBrands] = useState([]);
@@ -31,6 +33,10 @@ export default function SalesEntry() {
 
   const [sales, setSales] = useState([]);
   const [todaySales, setTodaySales] = useState({ total: 0, cash: 0, card: 0 });
+
+  // QR
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [qrStatus, setQrStatus] = useState(null); // { type: 'success'|'error', message: '' }
 
   useEffect(() => {
     loadData();
@@ -110,18 +116,97 @@ export default function SalesEntry() {
     }
   }, [selectedColorCode, colorCodes]);
 
+  // =====================
+  // QR TARAMA İŞLEMİ
+  // =====================
+  const handleQRScan = async (rawValue) => {
+    setShowQRScanner(false);
+    setQrStatus(null);
+
+    try {
+      // Tüm stoku çek, taranan değerle eşleştir
+      const allStock = await getStock();
+
+      // QR içeriği "Marka|Model|RenkKodu" veya sadece renk kodu / ürün adı olabilir
+      // Önce tam eşleşme dene: "brand|model|colorCode"
+      let found = null;
+
+      if (rawValue.includes('|')) {
+        const parts = rawValue.split('|');
+        if (parts.length >= 3) {
+          const [qrBrand, qrModel, qrColor] = parts;
+          found = allStock.find(p =>
+            p.brand?.toLowerCase() === qrBrand.trim().toLowerCase() &&
+            p.model?.toLowerCase() === qrModel.trim().toLowerCase() &&
+            p.colorCode?.toLowerCase() === qrColor.trim().toLowerCase()
+          );
+        }
+      }
+
+      // Eşleşme bulunamadıysa sadece renk kodu ile dene
+      if (!found) {
+        found = allStock.find(p =>
+          p.colorCode?.toLowerCase() === rawValue.trim().toLowerCase()
+        );
+      }
+
+      // Hâlâ bulunamadıysa marka+model kombinasyonu dene
+      if (!found && rawValue.includes(' ')) {
+        const parts = rawValue.trim().split(' ');
+        found = allStock.find(p =>
+          p.brand?.toLowerCase().includes(parts[0].toLowerCase()) &&
+          p.model?.toLowerCase().includes(parts[1]?.toLowerCase())
+        );
+      }
+
+      if (found) {
+        // Formu doldur
+        setIsOtherProduct(false);
+        setSelectedBrand(found.brand);
+
+        // Model listesini yükle
+        const brandModels = await getModelsByBrand(found.brand);
+        setModels(brandModels);
+        setSelectedModel(found.model);
+
+        // Renk kodlarını yükle
+        const colors = await getColorCodesByBrandModel(found.brand, found.model);
+        setColorCodes(colors);
+        setSelectedColorCode(found.colorCode);
+        setSelectedProduct(found);
+
+        // Fiyat varsa otomatik doldur
+        if (found.price && found.price > 0) {
+          setAmount(found.price.toString());
+        }
+
+        setQrStatus({
+          type: 'success',
+          message: `✅ Ürün bulundu: ${found.brand} - ${found.model} - ${found.colorCode}`
+        });
+      } else {
+        setQrStatus({
+          type: 'error',
+          message: `❌ "${rawValue}" — stokta eşleşen ürün bulunamadı. Manuel seçim yapabilirsiniz.`
+        });
+      }
+    } catch (err) {
+      setQrStatus({
+        type: 'error',
+        message: `Hata oluştu: ${err.message}`
+      });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validasyon
     if (isOtherProduct) {
-      // STOKSUZ ÜRÜN
       if (!otherDescription || !amount) {
         alert('Lütfen açıklama ve tutar girin!');
         return;
       }
     } else {
-      // NORMAL ÜRÜN
       if (!selectedBrand || !selectedModel || !selectedColorCode) {
         alert('Lütfen ürün seçin!');
         return;
@@ -142,10 +227,8 @@ export default function SalesEntry() {
       };
 
       if (isOtherProduct) {
-        // STOKSUZ ÜRÜN
         saleData.description = otherDescription;
       } else {
-        // NORMAL ÜRÜN
         saleData.brand = selectedBrand;
         saleData.model = selectedModel;
         saleData.colorCode = selectedColorCode;
@@ -167,6 +250,7 @@ export default function SalesEntry() {
       setAmount('');
       setPaymentType('Nakit');
       setNote('');
+      setQrStatus(null);
 
       alert('Satış başarıyla kaydedildi!');
     } catch (error) {
@@ -178,7 +262,6 @@ export default function SalesEntry() {
     if (!confirm(`${sale.brand} - ${sale.model} - ${sale.colorCode} için stoktan ${sale.quantity} adet düşülecek. Onaylıyor musunuz?`)) {
       return;
     }
-
     try {
       await decreaseStock(sale.brand, sale.model, sale.colorCode, sale.quantity);
       await updateSale(sale.id, { stockDecreased: true });
@@ -190,10 +273,7 @@ export default function SalesEntry() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Bu satışı silmek istediğinize emin misiniz?')) {
-      return;
-    }
-
+    if (!confirm('Bu satışı silmek istediğinize emin misiniz?')) return;
     try {
       await deleteSale(id);
       await loadData();
@@ -205,6 +285,14 @@ export default function SalesEntry() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-800">Satış Girişi</h1>
+
+      {/* QR Scanner Modal */}
+      {showQRScanner && (
+        <QRScanner
+          onScan={handleQRScan}
+          onClose={() => setShowQRScanner(false)}
+        />
+      )}
 
       {/* Bugünkü Toplam */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -224,7 +312,34 @@ export default function SalesEntry() {
 
       {/* Yeni Satış Formu */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Yeni Satış</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">Yeni Satış</h2>
+          {/* QR Tarama Butonu */}
+          {!isOtherProduct && (
+            <button
+              type="button"
+              onClick={() => { setQrStatus(null); setShowQRScanner(true); }}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition duration-200 text-sm"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4 4h4v4H4V4zm12 0h4v4h-4V4zM4 16h4v4H4v-4z" />
+              </svg>
+              QR / Barkod Tara
+            </button>
+          )}
+        </div>
+
+        {/* QR Durum Mesajı */}
+        {qrStatus && (
+          <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${
+            qrStatus.type === 'success'
+              ? 'bg-green-50 border border-green-200 text-green-800'
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}>
+            {qrStatus.message}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Diğer Ürünler Checkbox */}
@@ -233,7 +348,7 @@ export default function SalesEntry() {
               type="checkbox"
               id="isOtherProduct"
               checked={isOtherProduct}
-              onChange={(e) => setIsOtherProduct(e.target.checked)}
+              onChange={(e) => { setIsOtherProduct(e.target.checked); setQrStatus(null); }}
               className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
             <label htmlFor="isOtherProduct" className="ml-2 text-sm font-medium text-gray-700">
@@ -242,7 +357,6 @@ export default function SalesEntry() {
           </div>
 
           {!isOtherProduct ? (
-            // NORMAL ÜRÜN FORMU
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Marka */}
@@ -312,7 +426,6 @@ export default function SalesEntry() {
               )}
             </>
           ) : (
-            // STOKSUZ ÜRÜN FORMU
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Açıklama *</label>
               <input
@@ -454,16 +567,16 @@ export default function SalesEntry() {
                       {formatCurrency(sale.amount)}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit'
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        sale.paymentType === 'Nakit'
                           ? 'bg-green-100 text-green-800'
                           : 'bg-purple-100 text-purple-800'
-                        }`}>
+                      }`}>
                         {sale.paymentType}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {/* Stoktan Düş Butonu - Sadece normal ürünlerde */}
                         {!sale.is_other_product && (
                           sale.stockDecreased ? (
                             <span className="text-green-600 text-xl font-bold" title="Stok düşürüldü">✓</span>
@@ -479,8 +592,6 @@ export default function SalesEntry() {
                             </button>
                           )
                         )}
-
-                        {/* Sil Butonu */}
                         <button
                           onClick={() => handleDelete(sale.id)}
                           className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition"

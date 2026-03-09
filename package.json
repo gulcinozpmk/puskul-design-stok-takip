@@ -12,6 +12,7 @@
     "@supabase/supabase-js": "^2.98.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-qr-barcode-scanner": "^2.1.23",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
