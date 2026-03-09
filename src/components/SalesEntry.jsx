@@ -129,7 +129,7 @@ export default function SalesEntry() {
 
       // QR içeriği "Marka|Model|RenkKodu" veya sadece renk kodu / ürün adı olabilir
       // Önce tam eşleşme dene: "brand|model|colorCode"
-      let found = null;
+      let found = allStock.find(p => p.barcode === rawValue.trim());
 
       if (rawValue.includes('|')) {
         const parts = rawValue.split('|');
