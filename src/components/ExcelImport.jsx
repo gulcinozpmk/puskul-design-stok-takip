@@ -4,171 +4,124 @@ import {
   getStock,
   addStock,
   updateStock,
+  deleteStock,
   addBrand,
-  getBrands
 } from '../services/supabaseStorage';
 
 export default function ExcelImport({ onImportComplete }) {
   const [isImporting, setIsImporting] = useState(false);
   const [importResults, setImportResults] = useState(null);
+  const [preview, setPreview] = useState(null);
 
-  const extractBrandFromFilename = (filename) => {
-    const namePart = filename.replace('.xlsx', '').replace('.xls', '');
-    const cleaned = namePart.replace(/^\d+_-_/, '').replace(/_/g, ' ').trim();
-    const words = cleaned.split(' ');
-    return words[0] || 'Bilinmeyen Marka';
+  const parseFirstSheet = (workbook) => {
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+    const products = [];
+    const totalCols = rows[1]?.length || 0;
+
+    // col=1'den başla (A boş), her grup 3 kolon (2 veri + 1 boş)
+    for (let col = 1; col < totalCols; col += 3) {
+      const brand = String(rows[1]?.[col] || '').trim();
+      const model = String(rows[2]?.[col] || '').trim();
+      const satisFiyati = parseFloat(rows[3]?.[col + 1]) || 0;
+
+      if (!brand || !model) continue;
+
+      for (let row = 5; row < rows.length; row++) {
+        const renkNo = String(rows[row]?.[col] || '').trim();
+        const stokRaw = rows[row]?.[col + 1];
+
+        if (!renkNo || renkNo === '' || renkNo === 'undefined' || renkNo === '……..' || renkNo === '……..') continue;
+
+        const stok = parseInt(stokRaw);
+        const stokValue = isNaN(stok) ? 0 : Math.max(0, stok);
+
+        products.push({
+          brand,
+          model,
+          colorCode: renkNo,
+          quantity: stokValue,
+          price: satisFiyati,
+        });
+      }
+    }
+
+    return products;
   };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    setIsImporting(true);
+    setIsImporting(false);
     setImportResults(null);
 
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
-      const brandName = extractBrandFromFilename(file.name);
+      const products = parseFirstSheet(workbook);
 
-      console.log('📊 Toplam sheet sayısı:', workbook.SheetNames.length);
-      console.log('📋 Sheet isimleri:', workbook.SheetNames);
+      console.log(`📦 ${products.length} ürün bulundu`);
+      console.log('İlk 5:', products.slice(0, 5));
 
-      const products = [];
-      let processedSheets = 0;
+      // Önizleme göster
+      const brands = [...new Set(products.map(p => p.brand))];
+      const models = [...new Set(products.map(p => p.model))];
+      setPreview({ products, brands, models, filename: file.name });
 
-      for (const sheetName of workbook.SheetNames) {
-        console.log(`🔍 İşleniyor [${processedSheets + 1}/${workbook.SheetNames.length}]:`, sheetName);
+    } catch (error) {
+      console.error('❌ Okuma hatası:', error);
+      alert('Excel dosyası okunurken hata oluştu: ' + error.message);
+    } finally {
+      e.target.value = '';
+    }
+  };
 
-        if (sheetName.toUpperCase() === 'STOKLAR') {
-          console.log('⏭️ Atlandı: STOKLAR');
-          processedSheets++;
-          continue;
-        }
+  const handleImport = async () => {
+    if (!preview) return;
+    setIsImporting(true);
 
-        try {
-          const worksheet = workbook.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    try {
+      const { products } = preview;
 
-          // MODEL ADI = SHEET ADI
-          const modelName = sheetName;
-          console.log(`📝 Model: ${modelName}`);
-
-          // SADECE 3. SATIR (index 2) - Renk kodları ve stoklar
-          if (rows.length < 3) {
-            console.log(`⚠️ Sheet'te yeterli satır yok, atlanıyor`);
-            processedSheets++;
-            continue;
-          }
-
-          const dataRow = rows[2]; // SADECE 3. SATIR!
-
-          if (!dataRow || dataRow.length === 0) {
-            console.log(`⚠️ 3. satır boş, atlanıyor`);
-            processedSheets++;
-            continue;
-          }
-
-          console.log(`🔎 Satır verisi:`, dataRow);
-
-          // Her satırda 2'li grup: RenkNo, Stok, RenkNo, Stok
-          let productCount = 0;
-          for (let j = 0; j < dataRow.length; j += 3) { // ← 3'LÜ!
-            const renkNo = dataRow[j];
-            const stok = dataRow[j + 1];
-            // dataRow[j + 2] boş, atla
-
-            console.log(`  [${j}] Renk: ${renkNo}, Stok: ${stok}`);
-
-            const renkNoStr = String(renkNo).trim();
-
-            if (!renkNo || renkNoStr === '' || renkNoStr === 'undefined' || renkNoStr === 'null' || renkNoStr === '……..') {
-              console.log(`  ⏭️ Atlandı (geçersiz renk kodu): ${renkNo}`);
-              continue;
-            }
-
-            let stokValue = 0;
-            if (stok !== null && stok !== undefined && stok !== '') {
-              const parsed = parseInt(stok);
-              if (!isNaN(parsed)) {
-                stokValue = parsed < 0 ? 0 : parsed;
-              }
-            }
-
-            products.push({
-              brand: brandName,
-              model: modelName,
-              colorCode: renkNoStr,
-              quantity: stokValue,
-              price: 0,
-            });
-
-            console.log(`  ✅ Eklendi: ${renkNoStr} → ${stokValue}`);
-            productCount++;
-          }
-
-          console.log(`   → ${productCount} renk kodu bulundu`);
-          processedSheets++;
-          console.log(`✅ Tamamlandı [${processedSheets}/${workbook.SheetNames.length}]:`, sheetName);
-
-        } catch (error) {
-          console.error(`❌ Sheet hatası [${sheetName}]:`, error);
-          processedSheets++;
-          continue;
-        }
-      }
-
-      console.log(`📦 Toplam ${products.length} ürün bulundu`);
-      console.log(`📋 İlk 10 ürün:`, products.slice(0, 10));
-
-      // Veritabanına ekle
+      // Mevcut stoku tamamen sil
       const currentStock = await getStock();
-      let added = 0;
-      let updated = 0;
-      let skipped = 0;
-
-      await addBrand(brandName);
-      console.log('💾 Veritabanına yazılıyor...');
-
-      for (const product of products) {
-        const existing = currentStock.find(
-          item => item.brand === product.brand &&
-            item.model === product.model &&
-            item.colorCode === product.colorCode
-        );
-
-        if (existing) {
-          if (existing.quantity !== product.quantity) {
-            await updateStock(existing.id, { quantity: product.quantity });
-            updated++;
-          } else {
-            skipped++;
-          }
-        } else {
-          await addStock({
-            brand: product.brand,
-            model: product.model,
-            colorCode: product.colorCode,
-            quantity: product.quantity,
-            price: product.price,
-          });
-          added++;
-        }
-
-        if ((added + updated + skipped) % 50 === 0) {
-          console.log(`📝 İlerleme: ${added + updated + skipped}/${products.length}`);
-        }
+      for (const item of currentStock) {
+        await deleteStock(item.id);
       }
 
-      console.log('✅ Veritabanına yazma tamamlandı!');
+      // Markaları ekle
+      const brands = [...new Set(products.map(p => p.brand))];
+      for (const brand of brands) {
+        await addBrand(brand);
+      }
+
+      // Yeni stoku ekle
+      let added = 0;
+      for (const product of products) {
+        await addStock({
+          brand: product.brand,
+          model: product.model,
+          colorCode: product.colorCode,
+          quantity: product.quantity,
+          price: product.price,
+        });
+        added++;
+
+        if (added % 50 === 0) {
+          console.log(`📝 İlerleme: ${added}/${products.length}`);
+        }
+      }
 
       setImportResults({
-        brand: brandName,
         total: products.length,
         added,
-        updated,
-        skipped,
+        brands: brands.join(', '),
       });
+
+      setPreview(null);
 
       if (onImportComplete) {
         await onImportComplete();
@@ -176,10 +129,9 @@ export default function ExcelImport({ onImportComplete }) {
 
     } catch (error) {
       console.error('❌ Import hatası:', error);
-      alert('Excel dosyası okunurken hata oluştu: ' + error.message);
+      alert('Import sırasında hata oluştu: ' + error.message);
     } finally {
       setIsImporting(false);
-      e.target.value = '';
     }
   };
 
@@ -205,11 +157,30 @@ export default function ExcelImport({ onImportComplete }) {
               hover:file:bg-blue-100
               disabled:opacity-50 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-gray-500 mt-1">
-            Marka adı dosya isminden otomatik olarak algılanır
-          </p>
         </div>
 
+        {/* Önizleme */}
+        {preview && !isImporting && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-semibold text-blue-800 mb-2">📋 Önizleme — {preview.filename}</h4>
+            <div className="space-y-1 text-sm text-blue-700 mb-3">
+              <p>• Toplam ürün: <strong>{preview.products.length}</strong></p>
+              <p>• Markalar: <strong>{preview.brands.join(', ')}</strong></p>
+              <p>• Modeller: <strong>{preview.models.length} model</strong> ({preview.models.slice(0, 5).join(', ')}{preview.models.length > 5 ? '...' : ''})</p>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 mb-3">
+              ⚠️ Bu işlem mevcut tüm stoku silip yenisiyle değiştirecek!
+            </div>
+            <button
+              onClick={handleImport}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              ✅ Onayla ve İçe Aktar
+            </button>
+          </div>
+        )}
+
+        {/* Yükleniyor */}
         {isImporting && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center">
@@ -217,31 +188,31 @@ export default function ExcelImport({ onImportComplete }) {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span className="text-blue-700 font-medium">Excel dosyası işleniyor... (Console'u kontrol edin)</span>
+              <span className="text-blue-700 font-medium">İçe aktarılıyor, lütfen bekleyin...</span>
             </div>
           </div>
         )}
 
+        {/* Sonuç */}
         {importResults && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <h4 className="font-semibold text-green-800 mb-2">✅ İçe Aktarma Tamamlandı!</h4>
             <div className="space-y-1 text-sm text-green-700">
-              <p>• Marka: <strong>{importResults.brand}</strong></p>
-              <p>• Toplam işlenen: <strong>{importResults.total}</strong> ürün</p>
-              <p>• Yeni eklenen: <strong>{importResults.added}</strong> ürün</p>
-              <p>• Güncellenen: <strong>{importResults.updated}</strong> ürün</p>
-              <p>• Değişmeden kalan: <strong>{importResults.skipped}</strong> ürün</p>
+              <p>• Markalar: <strong>{importResults.brands}</strong></p>
+              <p>• Toplam eklenen: <strong>{importResults.added}</strong> ürün</p>
             </div>
           </div>
         )}
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <h4 className="font-semibold text-yellow-800 mb-2">💡 İpuçları:</h4>
+          <h4 className="font-semibold text-yellow-800 mb-2">💡 Excel Yapısı:</h4>
           <ul className="text-sm text-yellow-700 space-y-1">
-            <li>• Her markayı ayrı ayrı yükleyin (Lanoso, Nako, Himalaya...)</li>
-            <li>• Dosya adı önemli: "Lanosa_Stok.xlsx" → Marka: Lanoso</li>
-            <li>• Aynı ürün varsa sadece stok miktarı güncellenir</li>
-            <li>• Fiyatları daha sonra "Stok Yönetimi" sekmesinden girebilirsiniz</li>
+            <li>• 2. satır: Marka adı</li>
+            <li>• 3. satır: Model adı</li>
+            <li>• 4. satır: Alış fiyatı | Satış fiyatı</li>
+            <li>• 5. satır: "Renk No" | "Stok" başlıkları</li>
+            <li>• 6. satırdan itibaren: Renk kodları ve stok adetleri</li>
+            <li>• Sadece ilk sheet (STOKLAR) okunur</li>
           </ul>
         </div>
       </div>

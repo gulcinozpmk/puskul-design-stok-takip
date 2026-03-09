@@ -12,20 +12,14 @@ import {
 export default function Dashboard() {
   const [todaySales, setTodaySales] = useState([]);
   const [stock, setStock] = useState([]);
+  const [filterBrand, setFilterBrand] = useState('');
+  const [filterModel, setFilterModel] = useState('');
 
   useEffect(() => {
     loadData();
-
-    // localStorage değişikliklerini dinle
-    const handleStorageChange = () => {
-      loadData();
-    };
-
+    const handleStorageChange = () => loadData();
     window.addEventListener('storage', handleStorageChange);
-
-    // Manuel güncelleme için custom event dinle
     window.addEventListener('stockUpdated', handleStorageChange);
-
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('stockUpdated', handleStorageChange);
@@ -33,15 +27,13 @@ export default function Dashboard() {
   }, []);
 
   const loadData = async () => {
-  const allSales = await getSales();
-  const todayData = filterTodaySales(allSales);
-  console.log('Today Sales:', todayData); // DEBUG
-  setTodaySales(todayData);
-  const stockData = await getStock();
-  setStock(stockData);
-};
+    const allSales = await getSales();
+    const todayData = filterTodaySales(allSales);
+    setTodaySales(todayData);
+    const stockData = await getStock();
+    setStock(stockData);
+  };
 
-  // Yeni formattan eski formata çevir
   const convertedSales = todaySales.map(sale => ({
     cash: sale.paymentType === 'Nakit' ? sale.amount : 0,
     card: sale.paymentType === 'Kredi Kartı' ? sale.amount : 0,
@@ -51,7 +43,31 @@ export default function Dashboard() {
   const todayCash = calculateCashTotal(convertedSales);
   const todayCard = calculateCardTotal(convertedSales);
   const totalStockValue = calculateStockValue(stock);
-  const lowStock = stock.filter(item => item.quantity < 10);
+
+  // Benzersiz markalar
+  const brands = [...new Set(stock.map(item => item.brand).filter(Boolean))].sort();
+
+  // Seçili markaya göre modeller
+  const models = [...new Set(
+    stock.filter(item => !filterBrand || item.brand === filterBrand)
+      .map(item => item.model).filter(Boolean)
+  )].sort();
+
+  // Marka değişince modeli sıfırla
+  const handleBrandChange = (val) => {
+    setFilterBrand(val);
+    setFilterModel('');
+  };
+
+  const lowStock = stock
+    .filter(item => item.quantity < 10)
+    .filter(item => !filterBrand || item.brand === filterBrand)
+    .filter(item => !filterModel || item.model === filterModel)
+    .sort((a, b) => {
+      if (a.brand !== b.brand) return a.brand?.localeCompare(b.brand);
+      if (a.model !== b.model) return a.model?.localeCompare(b.model);
+      return a.colorCode?.localeCompare(b.colorCode);
+    });
 
   return (
     <div className="space-y-6">
@@ -59,7 +75,6 @@ export default function Dashboard() {
 
       {/* İstatistik Kartları */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Bugünkü Toplam Satış */}
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -74,7 +89,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Nakit */}
         <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -89,7 +103,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Kredi Kartı */}
         <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -104,7 +117,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Toplam Stok Değeri */}
         <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
@@ -120,9 +132,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Alt Kısım: Son Satışlar ve Düşük Stok Uyarıları */}
+      {/* Alt Kısım */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Son Satışlar */}
+        {/* Bugünkü Satışlar */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Bugünkü Satışlar</h2>
           {todaySales.length === 0 ? (
@@ -132,15 +144,9 @@ export default function Dashboard() {
               {todaySales.slice().reverse().map((sale, index) => (
                 <div key={`sale-${sale.id}-${index}`} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                   <div>
-                    <p className="font-medium text-gray-800">
-                      {formatCurrency(sale.amount)}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {sale.brand} - {sale.model} - {sale.colorCode}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {sale.paymentType} • {sale.quantity} adet
-                    </p>
+                    <p className="font-medium text-gray-800">{formatCurrency(sale.amount)}</p>
+                    <p className="text-sm text-gray-500">{sale.brand} - {sale.model} - {sale.colorCode}</p>
+                    <p className="text-xs text-gray-400">{sale.paymentType} • {sale.quantity} adet</p>
                   </div>
                   <span className="text-xs text-gray-400">
                     {new Date(sale.date).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
@@ -153,22 +159,48 @@ export default function Dashboard() {
 
         {/* Düşük Stok Uyarıları */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Düşük Stok Uyarıları</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">Düşük Stok Uyarıları</h2>
+            <span className="text-sm text-red-500 font-medium">{lowStock.length} ürün</span>
+          </div>
+
+          {/* Filtreler */}
+          <div className="flex gap-2 mb-4">
+            <select
+              value={filterBrand}
+              onChange={e => handleBrandChange(e.target.value)}
+              className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-300"
+            >
+              <option value="">Tüm Markalar</option>
+              {brands.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+
+            <select
+              value={filterModel}
+              onChange={e => setFilterModel(e.target.value)}
+              disabled={!filterBrand}
+              className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-40"
+            >
+              <option value="">Tüm Modeller</option>
+              {models.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+
           {lowStock.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">Tüm stoklar yeterli</p>
+            <p className="text-gray-500 text-center py-8">
+              {filterBrand || filterModel ? 'Seçili filtrede düşük stok yok' : 'Tüm stoklar yeterli'}
+            </p>
           ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto">
+            <div className="space-y-3 max-h-64 overflow-y-auto">
               {lowStock.map((item, index) => (
                 <div key={`lowstock-${item.id}-${index}`} className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-800">{item.brand} - {item.model}</p>
                     <p className="text-sm text-gray-600">Renk: {item.colorCode}</p>
                   </div>
-                  <div className="text-right">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                      {item.quantity} adet
-                    </span>
-                  </div>
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                    {item.quantity} adet
+                  </span>
                 </div>
               ))}
             </div>
