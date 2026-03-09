@@ -1,21 +1,57 @@
 import { useEffect, useRef, useState } from 'react';
-import BarcodeScannerComponent from 'react-qr-barcode-scanner';
+import { Html5Qrcode } from 'html5-qrcode';
 
 export default function QRScanner({ onScan, onClose }) {
   const [error, setError] = useState('');
-  const [scanned, setScanned] = useState(false);
+  const scannerRef = useRef(null);
+  const scannedRef = useRef(false);
 
-  // Kamera var mı kontrol et
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .catch(() => setError('Kamera erişimi sağlanamadı. Lütfen kamera iznini kontrol edin.'));
+    const scannerId = 'html5-qrcode-scanner';
+    const scanner = new Html5Qrcode(scannerId);
+    scannerRef.current = scanner;
+
+    Html5Qrcode.getCameras().then(cameras => {
+      if (!cameras || cameras.length === 0) {
+        setError('Kamera bulunamadı. Bu özelliği kullanmak için kameralı bir cihaz gereklidir.');
+        return;
+      }
+
+      // Arka kamerayı tercih et
+      const camera = cameras.find(c =>
+        c.label.toLowerCase().includes('back') ||
+        c.label.toLowerCase().includes('rear') ||
+        c.label.toLowerCase().includes('arka')
+      ) || cameras[cameras.length - 1];
+
+      scanner.start(
+        camera.id,
+        { fps: 10, qrbox: { width: 220, height: 150 } },
+        (decodedText) => {
+          if (scannedRef.current) return;
+          scannedRef.current = true;
+          stopScanner();
+          onScan(decodedText);
+        },
+        () => {} // Her frame'deki hataları görmezden gel
+      ).catch(err => {
+        setError('Kamera başlatılamadı: ' + err);
+      });
+    }).catch(() => {
+      setError('Kamera erişimi sağlanamadı. Lütfen kamera iznini kontrol edin.');
+    });
+
+    return () => stopScanner();
   }, []);
 
-  const handleUpdate = (err, result) => {
-    if (scanned) return;
-    if (result) {
-      setScanned(true);
-      onScan(result.text);
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      try {
+        scannerRef.current.stop().then(() => {
+          scannerRef.current.clear();
+        }).catch(() => {});
+      } catch(e) {}
+      scannerRef.current = null;
     }
   };
 
@@ -24,28 +60,17 @@ export default function QRScanner({ onScan, onClose }) {
       <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-800">📷 QR / Barkod Tara</h3>
-          <button onClick={onClose}
+          <button onClick={() => { stopScanner(); onClose(); }}
             className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
         </div>
 
         {error ? (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">{error}</div>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+            {error}
+          </div>
         ) : (
           <div className="relative rounded-lg overflow-hidden">
-            <BarcodeScannerComponent
-              width="100%"
-              height={300}
-              onUpdate={handleUpdate}
-              facingMode="environment"
-            />
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-48 h-48 border-2 border-blue-400 rounded-lg opacity-70 relative">
-                <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-500 rounded-tl"></div>
-                <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-500 rounded-tr"></div>
-                <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500 rounded-bl"></div>
-                <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500 rounded-br"></div>
-              </div>
-            </div>
+            <div id="html5-qrcode-scanner" className="w-full" />
           </div>
         )}
 
