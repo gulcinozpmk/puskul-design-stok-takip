@@ -124,14 +124,13 @@ export default function SalesEntry() {
     setQrStatus(null);
 
     try {
-      // Tüm stoku çek, taranan değerle eşleştir
       const allStock = await getStock();
 
-      // QR içeriği "Marka|Model|RenkKodu" veya sadece renk kodu / ürün adı olabilir
-      // Önce tam eşleşme dene: "brand|model|colorCode"
+      // Önce barcode kolonunda ara
       let found = allStock.find(p => p.barcode === rawValue.trim());
 
-      if (rawValue.includes('|')) {
+      // Bulunamadıysa | formatında dene
+      if (!found && rawValue.includes('|')) {
         const parts = rawValue.split('|');
         if (parts.length >= 3) {
           const [qrBrand, qrModel, qrColor] = parts;
@@ -143,39 +142,27 @@ export default function SalesEntry() {
         }
       }
 
-      // Eşleşme bulunamadıysa sadece renk kodu ile dene
+      // Renk kodu ile dene
       if (!found) {
         found = allStock.find(p =>
           p.colorCode?.toLowerCase() === rawValue.trim().toLowerCase()
         );
       }
 
-      // Hâlâ bulunamadıysa marka+model kombinasyonu dene
-      if (!found && rawValue.includes(' ')) {
-        const parts = rawValue.trim().split(' ');
-        found = allStock.find(p =>
-          p.brand?.toLowerCase().includes(parts[0].toLowerCase()) &&
-          p.model?.toLowerCase().includes(parts[1]?.toLowerCase())
-        );
-      }
-
       if (found) {
-        // Formu doldur
         setIsOtherProduct(false);
-        setSelectedBrand(found.brand);
 
-        // Model listesini yükle
+        // Model ve renk kodlarını önceden yükle, sonra state'leri set et
         const brandModels = await getModelsByBrand(found.brand);
-        setModels(brandModels);
-        setSelectedModel(found.model);
-
-        // Renk kodlarını yükle
         const colors = await getColorCodesByBrandModel(found.brand, found.model);
+
+        setModels(brandModels);
         setColorCodes(colors);
+        setSelectedBrand(found.brand);
+        setSelectedModel(found.model);
         setSelectedColorCode(found.colorCode);
         setSelectedProduct(found);
 
-        // Fiyat varsa otomatik doldur
         if (found.price && found.price > 0) {
           setAmount(found.price.toString());
         }
@@ -332,11 +319,10 @@ export default function SalesEntry() {
 
         {/* QR Durum Mesajı */}
         {qrStatus && (
-          <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${
-            qrStatus.type === 'success'
+          <div className={`mb-4 p-3 rounded-lg text-sm font-medium ${qrStatus.type === 'success'
               ? 'bg-green-50 border border-green-200 text-green-800'
               : 'bg-red-50 border border-red-200 text-red-800'
-          }`}>
+            }`}>
             {qrStatus.message}
           </div>
         )}
@@ -567,11 +553,10 @@ export default function SalesEntry() {
                       {formatCurrency(sale.amount)}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        sale.paymentType === 'Nakit'
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit'
                           ? 'bg-green-100 text-green-800'
                           : 'bg-purple-100 text-purple-800'
-                      }`}>
+                        }`}>
                         {sale.paymentType}
                       </span>
                     </td>
