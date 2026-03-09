@@ -162,7 +162,7 @@ export default function Dashboard() {
                 <div key={`lowstock-${item.id}-${index}`} className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-800">{item.brand} - {item.model}</p>
-                    <p className="text-sm text-gray-600">Renk: {item.color}</p>
+                    <p className="text-sm text-gray-600">Renk: {item.colorCode}</p>
                   </div>
                   <div className="text-right">
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
