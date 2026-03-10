@@ -51,10 +51,13 @@ export default function SalesEntry() {
   };
 
   const calculateTodaySales = (salesData) => {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
     const todaySalesData = salesData.filter(sale => {
-      const saleDate = new Date(sale.created_at).toISOString().split('T')[0];
-      return saleDate === today;
+      const saleDate = new Date(sale.created_at);
+      const saleDateStr = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
+      return saleDateStr === todayStr;
     });
 
     const total = todaySalesData.reduce((sum, sale) => sum + parseFloat(sale.amount || 0), 0);
@@ -112,6 +115,9 @@ export default function SalesEntry() {
     if (selectedColorCode) {
       const product = colorCodes.find(p => p.colorCode === selectedColorCode);
       setSelectedProduct(product);
+      if (product?.price && product.price > 0) {
+        setAmount((product.price * quantity).toFixed(2));
+      }
     } else {
       setSelectedProduct(null);
     }
@@ -435,7 +441,14 @@ export default function SalesEntry() {
                 type="number"
                 min="1"
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setQuantity(val);
+                  const qty = parseInt(val) || 1;
+                  if (selectedProduct?.price && selectedProduct.price > 0) {
+                    setAmount((selectedProduct.price * qty).toFixed(2));
+                  }
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="1"
                 required
