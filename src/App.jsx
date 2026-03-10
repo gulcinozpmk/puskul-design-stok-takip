@@ -1,26 +1,54 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import SalesEntry from './components/SalesEntry';
 import StockManagement from './components/StockManagement';
 import Reports from './components/Reports';
+import Login from './components/Login';
+import { supabase } from './services/supabaseClient';
 import './index.css';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [reportsKey, setReportsKey] = useState(0); // Raporlar için key
+  const [reportsKey, setReportsKey] = useState(0);
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <p className="text-gray-500">Yükleniyor...</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Login />;
+  }
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'sales':
-        return <SalesEntry />;
-      case 'stock':
-        return <StockManagement />;
-      case 'reports':
-        return <Reports key={reportsKey} />; // Key ile yenile
-      default:
-        return <Dashboard />;
+      case 'dashboard': return <Dashboard />;
+      case 'sales': return <SalesEntry />;
+      case 'stock': return <StockManagement />;
+      case 'reports': return <Reports key={reportsKey} />;
+      default: return <Dashboard />;
     }
   };
 
@@ -44,6 +72,12 @@ function App() {
                 <p className="text-sm text-gray-500">Stok Takip Sistemi</p>
               </div>
             </div>
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-500 hover:text-red-500 transition-colors duration-200"
+            >
+              Çıkış Yap
+            </button>
           </div>
         </div>
       </header>
@@ -57,10 +91,7 @@ function App() {
                 key={item.id}
                 onClick={() => {
                   setCurrentPage(item.id);
-                  // Raporlar tab'ına her tıklandığında key'i artır
-                  if (item.id === 'reports') {
-                    setReportsKey(prev => prev + 1);
-                  }
+                  if (item.id === 'reports') setReportsKey(prev => prev + 1);
                 }}
                 className={`
                   flex items-center space-x-2 px-6 py-4 font-medium transition-colors duration-200
