@@ -32,7 +32,7 @@ function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Header */}
       <header className="bg-white shadow-md">
         <div className="container mx-auto px-4 py-4">
@@ -79,7 +79,7 @@ function App() {
       </nav>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="flex-1 container mx-auto px-4 py-8">
         {renderPage()}
       </main>
 
@@ -87,7 +87,7 @@ function App() {
       <footer className="bg-white border-t border-gray-200 mt-12">
         <div className="container mx-auto px-4 py-6">
           <p className="text-center text-gray-500 text-sm">
-            © 2024 Puskul Design Stok Takip Sistemi - Tüm hakları saklıdır
+            © {new Date().getFullYear()} Puskul Design Stok Takip Sistemi - Tüm hakları saklıdır
           </p>
         </div>
       </footer>
