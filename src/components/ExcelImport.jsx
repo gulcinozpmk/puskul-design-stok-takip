@@ -4,7 +4,6 @@ import {
   getStock,
   addStock,
   updateStock,
-  deleteStock,
   addBrand,
 } from '../services/supabaseStorage';
 
@@ -25,11 +24,12 @@ export default function ExcelImport({ onImportComplete }) {
     for (let col = 1; col < totalCols; col += 3) {
       const brand = String(rows[1]?.[col] || '').trim();
       const model = String(rows[2]?.[col] || '').trim();
-      const satisFiyati = parseFloat(rows[3]?.[col + 1]) || 0;
+      const satisFiyati = parseFloat(rows[2]?.[col + 1]) || 0;
 
       if (!brand || !model) continue;
 
-      for (let row = 5; row < rows.length; row++) {
+      // Satır 4: başlıklar (Renk No | Stok), satır 5'ten itibaren veri
+      for (let row = 4; row < rows.length; row++) {
         const renkNo = String(rows[row]?.[col] || '').trim();
         const stokRaw = rows[row]?.[col + 1];
 
@@ -66,7 +66,6 @@ export default function ExcelImport({ onImportComplete }) {
       console.log(`📦 ${products.length} ürün bulundu`);
       console.log('İlk 5:', products.slice(0, 5));
 
-      // Önizleme göster
       const brands = [...new Set(products.map(p => p.brand))];
       const models = [...new Set(products.map(p => p.model))];
       setPreview({ products, brands, models, filename: file.name });
@@ -86,11 +85,8 @@ export default function ExcelImport({ onImportComplete }) {
     try {
       const { products } = preview;
 
-      // Mevcut stoku tamamen sil
+      // Mevcut stoku çek
       const currentStock = await getStock();
-      for (const item of currentStock) {
-        await deleteStock(item.id);
-      }
 
       // Markaları ekle
       const brands = [...new Set(products.map(p => p.brand))];
@@ -98,26 +94,45 @@ export default function ExcelImport({ onImportComplete }) {
         await addBrand(brand);
       }
 
-      // Yeni stoku ekle
       let added = 0;
-      for (const product of products) {
-        await addStock({
-          brand: product.brand,
-          model: product.model,
-          colorCode: product.colorCode,
-          quantity: product.quantity,
-          price: product.price,
-        });
-        added++;
+      let updated = 0;
 
-        if (added % 50 === 0) {
-          console.log(`📝 İlerleme: ${added}/${products.length}`);
+      for (const product of products) {
+        // Aynı brand+model+colorCode var mı kontrol et
+        const existing = currentStock.find(
+          s => s.brand === product.brand &&
+               s.model === product.model &&
+               s.colorCode === product.colorCode
+        );
+
+        if (existing) {
+          // Varsa güncelle (stok + fiyat)
+          await updateStock(existing.id, {
+            quantity: product.quantity,
+            price: product.price,
+          });
+          updated++;
+        } else {
+          // Yoksa ekle
+          await addStock({
+            brand: product.brand,
+            model: product.model,
+            colorCode: product.colorCode,
+            quantity: product.quantity,
+            price: product.price,
+          });
+          added++;
+        }
+
+        if ((added + updated) % 50 === 0) {
+          console.log(`📝 İlerleme: ${added + updated}/${products.length}`);
         }
       }
 
       setImportResults({
         total: products.length,
         added,
+        updated,
         brands: brands.join(', '),
       });
 
@@ -168,8 +183,8 @@ export default function ExcelImport({ onImportComplete }) {
               <p>• Markalar: <strong>{preview.brands.join(', ')}</strong></p>
               <p>• Modeller: <strong>{preview.models.length} model</strong> ({preview.models.slice(0, 5).join(', ')}{preview.models.length > 5 ? '...' : ''})</p>
             </div>
-            <div className="bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 mb-3">
-              ⚠️ Bu işlem mevcut tüm stoku silip yenisiyle değiştirecek!
+            <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-700 mb-3">
+              ℹ️ Mevcut ürünler güncellenecek, yeni ürünler eklenecek. Hiçbir veri silinmeyecek.
             </div>
             <button
               onClick={handleImport}
@@ -199,7 +214,9 @@ export default function ExcelImport({ onImportComplete }) {
             <h4 className="font-semibold text-green-800 mb-2">✅ İçe Aktarma Tamamlandı!</h4>
             <div className="space-y-1 text-sm text-green-700">
               <p>• Markalar: <strong>{importResults.brands}</strong></p>
-              <p>• Toplam eklenen: <strong>{importResults.added}</strong> ürün</p>
+              <p>• Yeni eklenen: <strong>{importResults.added}</strong> ürün</p>
+              <p>• Güncellenen: <strong>{importResults.updated}</strong> ürün</p>
+              <p>• Toplam işlenen: <strong>{importResults.total}</strong> ürün</p>
             </div>
           </div>
         )}
@@ -208,11 +225,10 @@ export default function ExcelImport({ onImportComplete }) {
           <h4 className="font-semibold text-yellow-800 mb-2">💡 Excel Yapısı:</h4>
           <ul className="text-sm text-yellow-700 space-y-1">
             <li>• 2. satır: Marka adı</li>
-            <li>• 3. satır: Model adı</li>
-            <li>• 4. satır: Alış fiyatı | Satış fiyatı</li>
-            <li>• 5. satır: "Renk No" | "Stok" başlıkları</li>
-            <li>• 6. satırdan itibaren: Renk kodları ve stok adetleri</li>
-            <li>• Sadece ilk sheet (STOKLAR) okunur</li>
+            <li>• 3. satır: Model adı | Satış fiyatı</li>
+            <li>• 4. satır: "Renk No" | "Stok" başlıkları</li>
+            <li>• 5. satırdan itibaren: Renk kodları ve stok adetleri</li>
+            <li>• Sadece ilk sheet okunur</li>
           </ul>
         </div>
       </div>
