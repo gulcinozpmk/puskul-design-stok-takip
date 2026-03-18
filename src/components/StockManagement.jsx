@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { 
-  getStock, 
-  addStock, 
-  updateStock, 
-  deleteStock, 
-  getBrands, 
-  addBrand, 
-  getModelsByBrand, 
-  getColorCodesByBrandModel 
+import {
+  getStock,
+  addStock,
+  updateStock,
+  deleteStock,
+  getBrands,
+  addBrand,
+  getModelsByBrand,
+  getColorCodesByBrandModel
 } from '../services/supabaseStorage';
 import { formatCurrency } from '../utils/helpers';
 import ExcelImport from './ExcelImport';
@@ -206,6 +206,26 @@ export default function StockManagement() {
 
   const totalValue = sortedStock.reduce((sum, item) => sum + (item.quantity * item.price), 0);
 
+  //Export Excel
+  const handleExportExcel = () => {
+    import('xlsx').then(XLSX => {
+      const data = sortedStock.map(item => ({
+        'Marka': item.brand,
+        'Model': item.model,
+        'Renk Kodu': item.colorCode,
+        'Barkod': item.barcode || '',
+        'Miktar': item.quantity,
+        'Birim Fiyat': item.price,
+        'Toplam Değer': item.quantity * item.price,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Stok');
+      XLSX.writeFile(wb, `stok-listesi-${new Date().toLocaleDateString('tr-TR').replace(/\./g, '-')}.xlsx`);
+    });
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-800">Stok Yönetimi</h1>
@@ -397,7 +417,15 @@ export default function StockManagement() {
         </div>
         <div className="mt-4 flex justify-between items-center text-sm text-gray-600">
           <span>{sortedStock.length} ürün listeleniyor</span>
-          <span className="font-semibold">Toplam Değer: {formatCurrency(totalValue)}</span>
+          <div className="flex items-center gap-4">
+            <span className="font-semibold">Toplam Değer: {formatCurrency(totalValue)}</span>
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+            >
+              📥 Excel'e Aktar
+            </button>
+          </div>
         </div>
       </div>
 

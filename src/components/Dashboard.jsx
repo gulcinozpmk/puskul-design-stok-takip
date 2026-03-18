@@ -69,6 +69,24 @@ export default function Dashboard() {
       return a.colorCode?.localeCompare(b.colorCode);
     });
 
+  //Export Excel
+  const handleExportLowStock = () => {
+    import('xlsx').then(XLSX => {
+      const data = lowStock.map(item => ({
+        'Marka': item.brand,
+        'Model': item.model,
+        'Renk Kodu': item.colorCode,
+        'Miktar': item.quantity,
+        'Birim Fiyat': item.price,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Düşük Stok');
+      XLSX.writeFile(wb, `dusuk-stok-${new Date().toLocaleDateString('tr-TR').replace(/\./g, '-')}.xlsx`);
+    });
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
@@ -161,7 +179,17 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-800">Düşük Stok Uyarıları</h2>
-            <span className="text-sm text-red-500 font-medium">{lowStock.length} ürün</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-red-500 font-medium">{lowStock.length} ürün</span>
+              {lowStock.length > 0 && (
+                <button
+                  onClick={handleExportLowStock}
+                  className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-xs font-medium transition"
+                >
+                  📥 Excel
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Filtreler */}
