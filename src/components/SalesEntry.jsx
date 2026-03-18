@@ -329,9 +329,9 @@ export default function SalesEntry() {
           <div className="flex items-center">
             <input type="checkbox" id="isOtherProduct" checked={isOtherProduct}
               onChange={(e) => { setIsOtherProduct(e.target.checked); setQrStatus(null); }}
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
-            <label htmlFor="isOtherProduct" className="ml-2 text-sm font-medium text-gray-700">
-              ☑️ Diğer Ürünler (Stoksuz - Şiş, Tığ, Çanta Sapı vb.)
+              className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+            <label htmlFor="isOtherProduct" style={{ marginLeft: '5px' }} className="text-base font-medium text-gray-700">
+               Diğer Ürünler (Stoksuz - Şiş, Tığ, Çanta Sapı vb.)
             </label>
           </div>
 

@@ -8,7 +8,7 @@ import { supabase } from './services/supabaseClient';
 import './index.css';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState('sales');
   const [reportsKey, setReportsKey] = useState(0);
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -53,9 +53,9 @@ function App() {
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'sales', label: 'Satış Girişi', icon: '💰' },
     { id: 'stock', label: 'Stok Yönetimi', icon: '📦' },
+    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'reports', label: 'Raporlar', icon: '📈' },
   ];
 
