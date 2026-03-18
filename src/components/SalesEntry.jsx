@@ -41,6 +41,8 @@ export default function SalesEntry() {
   const [cartPaymentType, setCartPaymentType] = useState('Nakit');
   const [isSavingCart, setIsSavingCart] = useState(false);
 
+  const [showTotals, setShowTotals] = useState(false);
+
   const cartTotal = cart.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
 
   useEffect(() => { loadData(); }, []);
@@ -215,76 +217,90 @@ export default function SalesEntry() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-800">Satış Girişi</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-800">Satış Girişi</h1>
+        <button
+          onClick={() => setShowTotals(prev => !prev)}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm"
+        >
+          {showTotals ? '🙈 Bugünkü Toplamı Gizle' : '📊 Bugünkü Toplamı Göster'}
+        </button>
+      </div>
 
       {showQRScanner && <QRScanner onScan={handleQRScan} onClose={() => setShowQRScanner(false)} />}
 
       {/* Bugünkü Toplam */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
-          <p className="text-sm opacity-90">Bugünkü Toplam</p>
-          <p className="text-3xl font-bold mt-2">{formatCurrency(todaySales.total)}</p>
-        </div>
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
-          <p className="text-sm opacity-90">Nakit</p>
-          <p className="text-3xl font-bold mt-2">{formatCurrency(todaySales.cash)}</p>
-        </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
-          <p className="text-sm opacity-90">Kredi Kartı</p>
-          <p className="text-3xl font-bold mt-2">{formatCurrency(todaySales.card)}</p>
-        </div>
-      </div>
+      {
+        showTotals && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+              <p className="text-sm opacity-90">Bugünkü Toplam</p>
+              <p className="text-3xl font-bold mt-2">{formatCurrency(todaySales.total)}</p>
+            </div>
+            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+              <p className="text-sm opacity-90">Nakit</p>
+              <p className="text-3xl font-bold mt-2">{formatCurrency(todaySales.cash)}</p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+              <p className="text-sm opacity-90">Kredi Kartı</p>
+              <p className="text-3xl font-bold mt-2">{formatCurrency(todaySales.card)}</p>
+            </div>
+          </div>
+        )
+      }
 
       {/* 🛒 SEPET */}
-      {cart.length > 0 && (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl shadow-md overflow-hidden">
-          <div className="px-6 py-4 bg-amber-400 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-amber-900">🛒 Mevcut Müşteri Sepeti ({cart.length} ürün)</h2>
-            <span className="text-2xl font-bold text-amber-900">{formatCurrency(cartTotal)}</span>
-          </div>
-          <div className="p-4 space-y-2">
-            {cart.map((item) => (
-              <div key={item.id} className="flex items-center justify-between bg-white rounded-lg px-4 py-2 shadow-sm">
-                <div>
-                  <p className="font-medium text-gray-800 text-sm">
-                    {item.is_other_product ? `🛠️ ${item.description}` : `${item.brand} - ${item.model} - ${item.colorCode}`}
-                  </p>
-                  {item.note && <p className="text-xs text-gray-500">{item.note}</p>}
+      {
+        cart.length > 0 && (
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-xl shadow-md overflow-hidden">
+            <div className="px-6 py-4 bg-amber-400 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-amber-900">🛒 Mevcut Müşteri Sepeti ({cart.length} ürün)</h2>
+              <span className="text-2xl font-bold text-amber-900">{formatCurrency(cartTotal)}</span>
+            </div>
+            <div className="p-4 space-y-2">
+              {cart.map((item) => (
+                <div key={item.id} className="flex items-center justify-between bg-white rounded-lg px-4 py-2 shadow-sm">
+                  <div>
+                    <p className="font-medium text-gray-800 text-sm">
+                      {item.is_other_product ? `🛠️ ${item.description}` : `${item.brand} - ${item.model} - ${item.colorCode}`}
+                    </p>
+                    {item.note && <p className="text-xs text-gray-500">{item.note}</p>}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-600">{item.quantity} adet</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(item.amount)}</span>
+                    <button onClick={() => setCart(prev => prev.filter(i => i.id !== item.id))}
+                      className="text-red-400 hover:text-red-600 text-lg leading-none">✕</button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600">{item.quantity} adet</span>
-                  <span className="font-semibold text-gray-900">{formatCurrency(item.amount)}</span>
-                  <button onClick={() => setCart(prev => prev.filter(i => i.id !== item.id))}
-                    className="text-red-400 hover:text-red-600 text-lg leading-none">✕</button>
-                </div>
+              ))}
+            </div>
+            <div className="px-6 py-4 bg-amber-50 border-t border-amber-200 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-amber-900">Ödeme Tipi:</span>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" value="Nakit" checked={cartPaymentType === 'Nakit'} onChange={e => setCartPaymentType(e.target.value)} className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm text-amber-900">Nakit</span>
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" value="Kredi Kartı" checked={cartPaymentType === 'Kredi Kartı'} onChange={e => setCartPaymentType(e.target.value)} className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm text-amber-900">Kredi Kartı</span>
+                </label>
               </div>
-            ))}
-          </div>
-          <div className="px-6 py-4 bg-amber-50 border-t border-amber-200 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-amber-900">Ödeme Tipi:</span>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input type="radio" value="Nakit" checked={cartPaymentType === 'Nakit'} onChange={e => setCartPaymentType(e.target.value)} className="w-4 h-4 text-amber-600" />
-                <span className="text-sm text-amber-900">Nakit</span>
-              </label>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input type="radio" value="Kredi Kartı" checked={cartPaymentType === 'Kredi Kartı'} onChange={e => setCartPaymentType(e.target.value)} className="w-4 h-4 text-amber-600" />
-                <span className="text-sm text-amber-900">Kredi Kartı</span>
-              </label>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => { if (confirm('Sepet iptal edilecek. Emin misiniz?')) setCart([]); }}
-                className="px-4 py-2 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition">
-                ✕ İptal Et
-              </button>
-              <button onClick={handleCompleteCart} disabled={isSavingCart}
-                className="px-6 py-2 text-sm bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition disabled:opacity-50">
-                {isSavingCart ? 'Kaydediliyor...' : `✅ Satışı Tamamla (${formatCurrency(cartTotal)})`}
-              </button>
+              <div className="flex gap-3">
+                <button onClick={() => { if (confirm('Sepet iptal edilecek. Emin misiniz?')) setCart([]); }}
+                  className="px-4 py-2 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition">
+                  ✕ İptal Et
+                </button>
+                <button onClick={handleCompleteCart} disabled={isSavingCart}
+                  className="px-6 py-2 text-sm bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition disabled:opacity-50">
+                  {isSavingCart ? 'Kaydediliyor...' : `✅ Satışı Tamamla (${formatCurrency(cartTotal)})`}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Ürün Ekleme Formu */}
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -438,11 +454,11 @@ export default function SalesEntry() {
                           sale.stockDecreased
                             ? <span className="text-green-600 text-xl font-bold" title="Stok düşürüldü">✓</span>
                             : <button onClick={() => handleDecreaseStock(sale)}
-                                className="p-2 text-orange-600 hover:text-orange-800 hover:bg-orange-50 rounded transition" title="Stoktan Düş">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                </svg>
-                              </button>
+                              className="p-2 text-orange-600 hover:text-orange-800 hover:bg-orange-50 rounded transition" title="Stoktan Düş">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            </button>
                         )}
                         <button onClick={() => handleDelete(sale.id)}
                           className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition" title="Sil">
@@ -459,6 +475,6 @@ export default function SalesEntry() {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 }
