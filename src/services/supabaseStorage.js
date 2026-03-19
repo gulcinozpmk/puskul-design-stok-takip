@@ -4,13 +4,24 @@ import { supabase } from './supabaseClient';
 
 export const getStock = async () => {
   try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('brand', { ascending: true });
+    let allData = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
-    return data || [];
+    while (true) {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('brand', { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+      allData = [...allData, ...data];
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return allData;
   } catch (error) {
     console.error('getStock error:', error);
     return [];
@@ -229,13 +240,23 @@ export const deleteSale = async (id) => {
 
 export const getBrands = async () => {
   try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('brand');
+    let allData = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data, error } = await supabase
+        .from('products')
+        .select('brand')
+        .range(from, from + pageSize - 1);
 
-    const uniqueBrands = [...new Set(data.map(item => item.brand))];
+      if (error) throw error;
+      allData = [...allData, ...data];
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    const uniqueBrands = [...new Set(allData.map(item => item.brand).filter(Boolean))];
     return uniqueBrands.sort();
   } catch (error) {
     console.error('getBrands error:', error);
@@ -252,14 +273,24 @@ export const addBrand = async (brandName) => {
 
 export const getModelsByBrand = async (brandName) => {
   try {
-    const { data, error } = await supabase
-      .from('products')
-      .select('model')
-      .eq('brand', brandName);
+    let allData = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data, error } = await supabase
+        .from('products')
+        .select('model')
+        .eq('brand', brandName)
+        .range(from, from + pageSize - 1);
 
-    const uniqueModels = [...new Set(data.map(item => item.model))];
+      if (error) throw error;
+      allData = [...allData, ...data];
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    const uniqueModels = [...new Set(allData.map(item => item.model).filter(Boolean))];
     return uniqueModels.sort();
   } catch (error) {
     console.error('getModelsByBrand error:', error);
