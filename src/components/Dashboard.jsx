@@ -35,8 +35,10 @@ export default function Dashboard() {
   };
 
   const convertedSales = todaySales.map(sale => ({
-    cash: sale.paymentType === 'Nakit' ? sale.amount : 0,
-    card: sale.paymentType === 'Kredi Kartı' ? sale.amount : 0,
+    cash: sale.paymentType === 'Nakit' ? sale.amount :
+      sale.paymentType === 'Karma' ? parseFloat(sale.cashamount || 0) : 0,
+    card: sale.paymentType === 'Kredi Kartı' ? sale.amount :
+      sale.paymentType === 'Karma' ? parseFloat(sale.cardamount || 0) : 0,
   }));
 
   const todayTotal = calculateTotal(convertedSales);

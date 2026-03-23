@@ -45,6 +45,10 @@ export default function SalesEntry() {
 
   const cartTotal = cart.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
 
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [cardAmount, setCardAmount] = useState('');
+  const cashAmount = isSplitPayment ? Math.max(0, cartTotal - (parseFloat(cardAmount) || 0)) : 0;
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
@@ -63,12 +67,25 @@ export default function SalesEntry() {
       const saleDateStr = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
       return saleDateStr === todayStr;
     });
-    const total = todaySalesData.reduce((sum, sale) => sum + parseFloat(sale.amount || 0), 0);
-    const cash = todaySalesData.filter(s => s.paymentType === 'Nakit').reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
-    const card = todaySalesData.filter(s => s.paymentType === 'Kredi Kartı').reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+
+    const total = todaySalesData.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+
+    // Nakit: tam nakit satışlar + karma'daki nakit payı
+    const cash = todaySalesData.reduce((sum, s) => {
+      if (s.paymentType === 'Nakit') return sum + parseFloat(s.amount || 0);
+      if (s.paymentType === 'Karma') return sum + parseFloat(s.cashamount || s.cashAmount || 0);
+      return sum;
+    }, 0);
+
+    // Kart: tam kartlı satışlar + karma'daki kart payı
+    const card = todaySalesData.reduce((sum, s) => {
+      if (s.paymentType === 'Kredi Kartı') return sum + parseFloat(s.amount || 0);
+      if (s.paymentType === 'Karma') return sum + parseFloat(s.cardamount || s.cardAmount || 0);
+      return sum;
+    }, 0);
+
     setTodaySales({ total, cash, card });
   };
-
   useEffect(() => {
     const loadModels = async () => {
       if (selectedBrand) {
@@ -182,15 +199,47 @@ export default function SalesEntry() {
   // Sepeti tamamla - Supabase'e kaydet
   const handleCompleteCart = async () => {
     if (cart.length === 0) return;
+
+    if (isSplitPayment) {
+      const card = parseFloat(cardAmount) || 0;
+      if (card <= 0 || card >= cartTotal) {
+        alert('Kredi kartı tutarı 0\'dan büyük ve toplam tutardan küçük olmalıdır!');
+        return;
+      }
+    }
+
     if (!confirm(`${cart.length} ürün, toplam ${formatCurrency(cartTotal)} olarak kaydedilecek. Onaylıyor musunuz?`)) return;
 
     setIsSavingCart(true);
+    const basketId = `basket_${Date.now()}`;
+
     try {
       for (const item of cart) {
-        await addSale({ ...item, paymentType: cartPaymentType });
+        if (isSplitPayment) {
+          const card = parseFloat(cardAmount) || 0;
+          const cash = cartTotal - card;
+          const ratio = item.amount / cartTotal;
+          await addSale({
+            ...item,
+            paymentType: 'Karma',
+            cashAmount: parseFloat((cash * ratio).toFixed(2)),
+            cardAmount: parseFloat((card * ratio).toFixed(2)),
+            basket_id: basketId,
+          });
+        } else {
+          await addSale({
+            ...item,
+            paymentType: cartPaymentType,
+            cashAmount: cartPaymentType === 'Nakit' ? item.amount : 0,
+            cardAmount: cartPaymentType === 'Kredi Kartı' ? item.amount : 0,
+            basket_id: basketId,
+          });
+        }
       }
       setCart([]);
       setCartPaymentType('Nakit');
+      setIsSplitPayment(false);
+      setCardAmount('');
       await loadData();
     } catch (error) {
       alert('Hata: ' + error.message);
@@ -275,17 +324,42 @@ export default function SalesEntry() {
                 </div>
               ))}
             </div>
-            <div className="px-6 py-4 bg-amber-50 border-t border-amber-200 flex flex-wrap items-center justify-between gap-4">
+            <div className="px-6 py-5 bg-amber-50 border-t border-amber-200 flex flex-wrap items-center justify-between gap-6">
               <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-amber-900">Ödeme Tipi:</span>
-                <label className="flex items-center gap-1 cursor-pointer">
-                  <input type="radio" value="Nakit" checked={cartPaymentType === 'Nakit'} onChange={e => setCartPaymentType(e.target.value)} className="w-4 h-4 text-amber-600" />
-                  <span className="text-sm text-amber-900">Nakit</span>
+                <span className="text-base font-medium text-amber-900">Ödeme Tipi:</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" value="Nakit" checked={cartPaymentType === 'Nakit' && !isSplitPayment}
+                    onChange={() => { setCartPaymentType('Nakit'); setIsSplitPayment(false); }}
+                    className="w-5 h-5 text-amber-600" />
+                  <span className="text-base text-amber-900">Nakit</span>
                 </label>
-                <label className="flex items-center gap-1 cursor-pointer">
-                  <input type="radio" value="Kredi Kartı" checked={cartPaymentType === 'Kredi Kartı'} onChange={e => setCartPaymentType(e.target.value)} className="w-4 h-4 text-amber-600" />
-                  <span className="text-sm text-amber-900">Kredi Kartı</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" value="Kredi Kartı" checked={cartPaymentType === 'Kredi Kartı' && !isSplitPayment}
+                    onChange={() => { setCartPaymentType('Kredi Kartı'); setIsSplitPayment(false); }}
+                    className="w-5 h-5 text-amber-600" />
+                  <span className="text-base text-amber-900">Kredi Kartı</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" checked={isSplitPayment}
+                    onChange={() => { setIsSplitPayment(true); setCartPaymentType('Karma'); }}
+                    className="w-5 h-5 text-amber-600" />
+                  <span className="text-base text-amber-900">Böl</span>
+                </label>
+                {isSplitPayment && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-amber-800">Kredi Kartı:</span>
+                    <input
+                      type="number" step="0.01" min="0" max={cartTotal}
+                      value={cardAmount}
+                      onChange={e => setCardAmount(e.target.value)}
+                      className="w-24 px-2 py-1 text-sm border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                      placeholder="0.00"
+                    />
+                    <span className="text-xs text-amber-800">
+                      Nakit: <strong>{formatCurrency(cashAmount)}</strong>
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="flex gap-3">
                 <button onClick={() => { if (confirm('Sepet iptal edilecek. Emin misiniz?')) setCart([]); }}
@@ -331,7 +405,7 @@ export default function SalesEntry() {
               onChange={(e) => { setIsOtherProduct(e.target.checked); setQrStatus(null); }}
               className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
             <label htmlFor="isOtherProduct" style={{ marginLeft: '5px' }} className="text-base font-medium text-gray-700">
-               Diğer Ürünler (Stoksuz - Şiş, Tığ, Çanta Sapı vb.)
+              Diğer Ürünler (Stoksuz - Şiş, Tığ, Çanta Sapı vb.)
             </label>
           </div>
 
@@ -424,53 +498,90 @@ export default function SalesEntry() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Tarih</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Ürün</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Miktar</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Ürün</th>
                   <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Tutar</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Ödeme</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">İşlem</th>
                 </tr>
               </thead>
-              <tbody>
-                {sales.map((sale, index) => (
-                  <tr key={sale.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="py-3 px-4 text-sm text-gray-600">{formatDate(sale.created_at)}</td>
-                    <td className="py-3 px-4 text-sm">
-                      {sale.is_other_product
-                        ? <span className="text-purple-700 font-medium">🛠️ {sale.description}</span>
-                        : <span className="text-gray-800 font-medium">{sale.brand} - {sale.model} - {sale.colorCode}</span>}
-                      {sale.note && <p className="text-xs text-gray-500 mt-1">{sale.note}</p>}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-center text-gray-800">{sale.quantity}</td>
-                    <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">{formatCurrency(sale.amount)}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}`}>
-                        {sale.paymentType}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {!sale.is_other_product && (
-                          sale.stockDecreased
-                            ? <span className="text-green-600 text-xl font-bold" title="Stok düşürüldü">✓</span>
-                            : <button onClick={() => handleDecreaseStock(sale)}
-                              className="p-2 text-orange-600 hover:text-orange-800 hover:bg-orange-50 rounded transition" title="Stoktan Düş">
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                        )}
-                        <button onClick={() => handleDelete(sale.id)}
-                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition" title="Sil">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+
+              {(() => {
+                const groups = [];
+                const seen = new Set();
+
+                for (const sale of sales) {
+                  const key = sale.basket_id || `solo_${sale.id}`;
+                  if (seen.has(key)) continue;
+                  seen.add(key);
+
+                  if (sale.basket_id) {
+                    const group = sales.filter(s => s.basket_id === sale.basket_id);
+                    groups.push({ key, items: group, isGroup: true });
+                  } else {
+                    groups.push({ key, items: [sale], isGroup: false });
+                  }
+                }
+
+                return groups.map(({ key, items, isGroup }) => {
+                  const groupTotal = items.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+                  const isKarma = items[0]?.paymentType === 'Karma';
+                  const totalCash = items.reduce((sum, s) => sum + parseFloat(s.cashamount || s.cashAmount || 0), 0);
+                  const totalCard = items.reduce((sum, s) => sum + parseFloat(s.cardamount || s.cardAmount || 0), 0);
+                  return (
+                    <tbody key={key} className={`border ${isGroup ? 'border-blue-200' : 'border-gray-200'} rounded-lg`}>
+                      {isGroup && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-2 bg-blue-50 border-b border-blue-200">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-blue-700">🛒 {items.length} ürün — {formatCurrency(groupTotal)}</span>
+                              {isKarma && (
+                                <span className="text-xs text-blue-600">
+                                  Nakit: <strong>{formatCurrency(totalCash)}</strong> · Kredi Kartı: <strong>{formatCurrency(totalCard)}</strong>
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {items.map((sale, index) => (
+                        <tr key={sale.id} className={`${isGroup ? 'bg-blue-50/20' : ''} ${index > 0 ? 'border-t border-gray-100' : ''} hover:bg-gray-50 transition`}>
+                          <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{formatDate(sale.created_at)}</td>
+                          <td className="py-3 px-4 text-sm text-center text-gray-800">{sale.quantity}</td>
+                          <td className="py-3 px-4 text-sm">
+                            {sale.is_other_product
+                              ? <span className="text-purple-700 font-medium">🛠️ {sale.description}</span>
+                              : <span className="text-gray-800 font-medium">{sale.brand} - {sale.model} - {sale.colorCode}</span>}
+                            {sale.note && <p className="text-xs text-gray-500 mt-1">{sale.note}</p>}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900 whitespace-nowrap">{formatCurrency(sale.amount)}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit' ? 'bg-green-100 text-green-800' :
+                              sale.paymentType === 'Karma' ? 'bg-blue-100 text-blue-800' :
+                                'bg-purple-100 text-purple-800'}`}>
+                              {sale.paymentType}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {!sale.is_other_product ? (
+                                sale.stockDecreased
+                                  ? <span className="text-green-600 font-bold text-lg">✓</span>
+                                  : <button onClick={() => handleDecreaseStock(sale)} className="p-1 text-orange-600 hover:text-orange-800 rounded transition" title="Stoktan Düş">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+                                  </button>
+                              ) : <span className="w-7 inline-block" />}
+                              <button onClick={() => handleDelete(sale.id)} className="p-1 text-red-600 hover:text-red-800 rounded transition" title="Sil">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  );
+                });
+              })()}
             </table>
           </div>
         )}

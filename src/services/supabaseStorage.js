@@ -165,6 +165,9 @@ export const addSale = async (sale) => {
       quantity: sale.quantity || 1,
       note: sale.note || '',
       stockDecreased: false,
+      cashamount: sale.cashAmount || 0,
+      cardamount: sale.cardAmount || 0,
+      basket_id: sale.basket_id || null,
     };
 
     // Diğer ürün mü yoksa normal ürün mü?

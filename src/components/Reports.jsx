@@ -40,8 +40,10 @@ export default function Reports() {
 
   // Yeni formattan eski formata çevir
   const convertedSales = monthlySales.map(sale => ({
-    cash: sale.paymentType === 'Nakit' ? sale.amount : 0,
-    card: sale.paymentType === 'Kredi Kartı' ? sale.amount : 0,
+    cash: sale.paymentType === 'Nakit' ? sale.amount :
+      sale.paymentType === 'Karma' ? parseFloat(sale.cashamount || 0) : 0,
+    card: sale.paymentType === 'Kredi Kartı' ? sale.amount :
+      sale.paymentType === 'Karma' ? parseFloat(sale.cardamount || 0) : 0,
   }));
 
   const monthlyTotal = calculateTotal(convertedSales);
@@ -60,8 +62,10 @@ export default function Reports() {
 
   const dailyStats = Object.entries(dailyGroups).map(([date, sales]) => {
     const converted = sales.map(sale => ({
-      cash: sale.paymentType === 'Nakit' ? sale.amount : 0,
-      card: sale.paymentType === 'Kredi Kartı' ? sale.amount : 0,
+      cash: sale.paymentType === 'Nakit' ? sale.amount :
+        sale.paymentType === 'Karma' ? parseFloat(sale.cashamount || 0) : 0,
+      card: sale.paymentType === 'Kredi Kartı' ? sale.amount :
+        sale.paymentType === 'Karma' ? parseFloat(sale.cardamount || 0) : 0,
     }));
 
     return {
