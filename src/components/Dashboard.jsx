@@ -165,7 +165,11 @@ export default function Dashboard() {
                 <div key={`sale-${sale.id}-${index}`} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-800">{formatCurrency(sale.amount)}</p>
-                    <p className="text-sm text-gray-500">{sale.brand} - {sale.model} - {sale.colorCode}</p>
+                    <p className="text-sm text-gray-500">
+                      {sale.is_other_product
+                        ? `🛠️ ${sale.description}`
+                        : `${sale.brand} - ${sale.model} - ${sale.colorCode}`}
+                    </p>
                     <p className="text-xs text-gray-400">{sale.paymentType} • {sale.quantity} adet</p>
                   </div>
                   <span className="text-xs text-gray-400">
