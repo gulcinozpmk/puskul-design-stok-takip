@@ -63,7 +63,7 @@ function App() {
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Header */}
       <header className="bg-white shadow-md">
-        <div className="container mx-auto px-4 py-4">
+        <div className="max-w-5xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="text-3xl">🧶</div>
@@ -84,7 +84,7 @@ function App() {
 
       {/* Navigation */}
       <nav className="bg-white shadow-sm border-t border-gray-200">
-        <div className="container mx-auto px-4">
+        <div className="max-w-5xl mx-auto px-4">
           <div className="flex space-x-1 overflow-x-auto">
             {navItems.map((item) => (
               <button
@@ -110,13 +110,13 @@ function App() {
       </nav>
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className="flex-1 max-w-5xl mx-auto px-4 py-8 w-full">
         {renderPage()}
       </main>
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="container mx-auto px-4 py-6">
+        <div className="max-w-5xl mx-auto px-4 py-6">
           <p className="text-center text-gray-500 text-sm">
             © {new Date().getFullYear()} Puskul Design Stok Takip Sistemi - Tüm hakları saklıdır
           </p>
