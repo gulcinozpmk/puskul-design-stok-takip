@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   addSale,
   getSales,
@@ -12,6 +12,7 @@ import {
 } from '../services/supabaseStorage';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import QRScanner from './QRScanner';
+import CalendarPopup from './CalendarPopup';
 
 export default function SalesEntry() {
   const [brands, setBrands] = useState([]);
@@ -48,6 +49,13 @@ export default function SalesEntry() {
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [cardAmount, setCardAmount] = useState('');
   const cashAmount = isSplitPayment ? Math.max(0, cartTotal - (parseFloat(cardAmount) || 0)) : 0;
+
+  //satış listesinde tarih seçme
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+  const [showCalendar, setShowCalendar] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -415,7 +423,7 @@ export default function SalesEntry() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
                   <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                    className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
                     <option value="">Marka Seçin</option>
                     {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
                   </select>
@@ -423,7 +431,7 @@ export default function SalesEntry() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
                   <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedBrand} required>
+                    className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedBrand} required>
                     <option value="">Model Seçin</option>
                     {models.map(model => <option key={model} value={model}>{model}</option>)}
                   </select>
@@ -431,7 +439,7 @@ export default function SalesEntry() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu *</label>
                   <select value={selectedColorCode} onChange={(e) => setSelectedColorCode(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedModel} required>
+                    className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedModel} required>
                     <option value="">Renk Kodu Seçin</option>
                     {colorCodes.map(item => <option key={item.id} value={item.colorCode}>{item.colorCode} - Stok: {item.quantity}</option>)}
                   </select>
@@ -454,7 +462,7 @@ export default function SalesEntry() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Miktar *</label>
               <input type="number" min="1" value={quantity}
@@ -464,22 +472,22 @@ export default function SalesEntry() {
                   const qty = parseInt(val) || 1;
                   if (selectedProduct?.price && selectedProduct.price > 0) setAmount((selectedProduct.price * qty).toFixed(2));
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="1" required />
+                className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="1" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Tutar (₺) *</label>
               <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00" required />
+                className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Not (Opsiyonel)</label>
               <input type="text" value={note} onChange={(e) => setNote(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Not ekleyin..." />
+                className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Not ekleyin..." />
             </div>
           </div>
 
           <button type="submit"
-            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-lg transition">
+            className="block mx-auto w-full max-w-lg bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-lg transition">
             🛒 Sepete Ekle
           </button>
         </form>
@@ -487,104 +495,208 @@ export default function SalesEntry() {
 
       {/* Son Satışlar */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
+
+        {/* Başlık + Navigasyon */}
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">Son Satışlar</h2>
-        </div>
-        {sales.length === 0 ? (
-          <p className="text-gray-500 text-center py-12">Henüz satış kaydı yok</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Tarih</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Miktar</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Ürün</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Tutar</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Ödeme</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">İşlem</th>
-                </tr>
-              </thead>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-800">Son Satışlar</h2>
 
+            <div className="flex items-center gap-2 relative">
+              {/* Önceki gün */}
+              <button
+                onClick={() => {
+                  const d = new Date(selectedDate);
+                  d.setDate(d.getDate() - 1);
+                  setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+                }}
+                className="p-2 rounded-lg hover:bg-gray-200 transition text-gray-600"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              {/* Tarih butonu - takvim açar */}
+              <button
+                onClick={() => setShowCalendar(prev => !prev)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium text-gray-700 min-w-[140px] justify-center"
+              >
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {(() => {
+                  const today = new Date();
+                  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                  if (selectedDate === todayStr) return 'Bugün';
+                  const d = new Date(selectedDate);
+                  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+                })()}
+              </button>
+
+              {/* Sonraki gün */}
+              <button
+                onClick={() => {
+                  const today = new Date();
+                  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                  if (selectedDate >= todayStr) return;
+                  const d = new Date(selectedDate);
+                  d.setDate(d.getDate() + 1);
+                  setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+                }}
+                className={`p-2 rounded-lg transition ${(() => {
+                  const today = new Date();
+                  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                  return selectedDate >= todayStr ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-200 text-gray-600';
+                })()}`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* Bugüne dön butonu */}
               {(() => {
-                const groups = [];
-                const seen = new Set();
-
-                for (const sale of sales) {
-                  const key = sale.basket_id || `solo_${sale.id}`;
-                  if (seen.has(key)) continue;
-                  seen.add(key);
-
-                  if (sale.basket_id) {
-                    const group = sales.filter(s => s.basket_id === sale.basket_id);
-                    groups.push({ key, items: group, isGroup: true });
-                  } else {
-                    groups.push({ key, items: [sale], isGroup: false });
-                  }
-                }
-
-                return groups.map(({ key, items, isGroup }) => {
-                  const groupTotal = items.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
-                  const isKarma = items[0]?.paymentType === 'Karma';
-                  const totalCash = items.reduce((sum, s) => sum + parseFloat(s.cashamount || s.cashAmount || 0), 0);
-                  const totalCard = items.reduce((sum, s) => sum + parseFloat(s.cardamount || s.cardAmount || 0), 0);
-                  return (
-                    <tbody key={key} className={`border ${isGroup ? 'border-blue-200' : 'border-gray-200'} rounded-lg`}>
-                      {isGroup && (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-2 bg-blue-50 border-b border-blue-200">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold text-blue-700">🛒 {items.length} ürün — {formatCurrency(groupTotal)}</span>
-                              {isKarma && (
-                                <span className="text-xs text-blue-600">
-                                  Nakit: <strong>{formatCurrency(totalCash)}</strong> · Kredi Kartı: <strong>{formatCurrency(totalCard)}</strong>
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                      {items.map((sale, index) => (
-                        <tr key={sale.id} className={`${isGroup ? 'bg-blue-50/20' : ''} ${index > 0 ? 'border-t border-gray-100' : ''} hover:bg-gray-50 transition`}>
-                          <td className="py-3 px-4 text-sm text-gray-600 whitespace-nowrap">{formatDate(sale.created_at)}</td>
-                          <td className="py-3 px-4 text-sm text-center text-gray-800">{sale.quantity}</td>
-                          <td className="py-3 px-4 text-sm">
-                            {sale.is_other_product
-                              ? <span className="text-purple-700 font-medium">🛠️ {sale.description}</span>
-                              : <span className="text-gray-800 font-medium">{sale.brand} - {sale.model} - {sale.colorCode}</span>}
-                            {sale.note && <p className="text-xs text-gray-500 mt-1">{sale.note}</p>}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900 whitespace-nowrap">{formatCurrency(sale.amount)}</td>
-                          <td className="py-3 px-4 text-center">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit' ? 'bg-green-100 text-green-800' :
-                              sale.paymentType === 'Karma' ? 'bg-blue-100 text-blue-800' :
-                                'bg-purple-100 text-purple-800'}`}>
-                              {sale.paymentType}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              {!sale.is_other_product ? (
-                                sale.stockDecreased
-                                  ? <span className="text-green-600 font-bold text-lg">✓</span>
-                                  : <button onClick={() => handleDecreaseStock(sale)} className="p-1 text-orange-600 hover:text-orange-800 rounded transition" title="Stoktan Düş">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
-                                  </button>
-                              ) : <span className="w-7 inline-block" />}
-                              <button onClick={() => handleDelete(sale.id)} className="p-1 text-red-600 hover:text-red-800 rounded transition" title="Sil">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  );
-                });
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                return selectedDate !== todayStr ? (
+                  <button
+                    onClick={() => setSelectedDate(todayStr)}
+                    className="px-3 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium"
+                  >
+                    Bugün
+                  </button>
+                ) : null;
               })()}
-            </table>
+
+              {/* Takvim Popup */}
+              {showCalendar && (
+                <CalendarPopup
+                  selectedDate={selectedDate}
+                  onSelect={setSelectedDate}
+                  onClose={() => setShowCalendar(false)}
+                />
+              )}
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* Tablo */}
+        {(() => {
+          const filteredSales = sales.filter(sale => {
+            const d = new Date(sale.created_at);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            return dateStr === selectedDate;
+          });
+
+          if (filteredSales.length === 0) {
+            return (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                <svg className="w-12 h-12 mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p className="text-sm font-medium">Bu gün için satış kaydı yok</p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Tarih</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Ürün</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Miktar</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Tutar</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Ödeme</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const groups = [];
+                    const seen = new Set();
+
+                    for (const sale of filteredSales) {
+                      const key = sale.basket_id || `solo_${sale.id}`;
+                      if (seen.has(key)) continue;
+                      seen.add(key);
+                      if (sale.basket_id) {
+                        const group = filteredSales.filter(s => s.basket_id === sale.basket_id);
+                        groups.push({ key, items: group, isGroup: true });
+                      } else {
+                        groups.push({ key, items: [sale], isGroup: false });
+                      }
+                    }
+
+                    return groups.map(({ key, items, isGroup }) => {
+                      const groupTotal = items.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+                      const isKarma = items[0]?.paymentType === 'Karma';
+                      const totalCash = items.reduce((sum, s) => sum + parseFloat(s.cashamount || 0), 0);
+                      const totalCard = items.reduce((sum, s) => sum + parseFloat(s.cardamount || 0), 0);
+
+                      return (
+                        <React.Fragment key={key}>
+                          {isGroup && (
+                            <tr>
+                              <td colSpan={6} className="px-4 py-2 bg-blue-50 border-t-2 border-b border-blue-200">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-blue-700">🛒 {items.length} ürün — {formatCurrency(groupTotal)}</span>
+                                  {isKarma && (
+                                    <span className="text-xs text-blue-600">
+                                      Nakit: <strong>{formatCurrency(totalCash)}</strong> · Kredi Kartı: <strong>{formatCurrency(totalCard)}</strong>
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {items.map((sale, index) => (
+                            <tr key={sale.id} className={`border-t ${isGroup ? 'border-blue-100 bg-blue-50/20' : 'border-gray-100'} hover:bg-gray-50 transition`}>
+                              <td className="py-3 px-4 text-sm text-gray-600">{formatDate(sale.created_at)}</td>
+                              <td className="py-3 px-4 text-sm">
+                                {sale.is_other_product
+                                  ? <span className="text-purple-700 font-medium">🛠️ {sale.description}</span>
+                                  : <span className="text-gray-800 font-medium">{sale.brand} - {sale.model} - {sale.colorCode}</span>}
+                                {sale.note && <p className="text-xs text-gray-500 mt-1">{sale.note}</p>}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-center text-gray-800">{sale.quantity}</td>
+                              <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">{formatCurrency(sale.amount)}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit' ? 'bg-green-100 text-green-800' :
+                                    sale.paymentType === 'Karma' ? 'bg-blue-100 text-blue-800' :
+                                      'bg-purple-100 text-purple-800'}`}>
+                                  {sale.paymentType}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {!sale.is_other_product ? (
+                                    sale.stockDecreased
+                                      ? <span className="text-green-600 font-bold text-lg">✓</span>
+                                      : <button onClick={() => handleDecreaseStock(sale)} className="p-1 text-orange-600 hover:text-orange-800 rounded transition" title="Stoktan Düş">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+                                      </button>
+                                  ) : <span className="w-7 inline-block" />}
+                                  <button onClick={() => handleDelete(sale.id)} className="p-1 text-red-600 hover:text-red-800 rounded transition" title="Sil">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {isGroup && (
+                            <tr><td colSpan={6} className="border-b-2 border-blue-200 p-0" /></tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
       </div>
     </div >
   );
