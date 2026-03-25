@@ -272,6 +272,34 @@ export default function SalesEntry() {
     catch (error) { alert('Hata: ' + error.message); }
   };
 
+  const handleDecreaseAllStock = async () => {
+    const filteredSales = sales.filter(sale => {
+      const d = new Date(sale.created_at);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return dateStr === selectedDate;
+    });
+
+    const pending = filteredSales.filter(s => !s.is_other_product && !s.stockDecreased);
+
+    if (pending.length === 0) {
+      alert('Stoktan düşülecek ürün yok!');
+      return;
+    }
+
+    if (!confirm(`${pending.length} ürün için stok düşülecek. Onaylıyor musunuz?`)) return;
+
+    try {
+      for (const sale of pending) {
+        await decreaseStock(sale.brand, sale.model, sale.colorCode, sale.quantity);
+        await updateSale(sale.id, { stockDecreased: true });
+      }
+      await loadData();
+      alert(`${pending.length} ürün için stok başarıyla düşürüldü!`);
+    } catch (error) {
+      alert('Hata: ' + error.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -519,9 +547,9 @@ export default function SalesEntry() {
               {/* Tarih butonu - takvim açar */}
               <button
                 onClick={() => setShowCalendar(prev => !prev)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium text-gray-700 min-w-[140px] justify-center"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 rounded-lg transition text-sm font-medium min-w-[140px] justify-center"
               >
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 {(() => {
@@ -664,8 +692,8 @@ export default function SalesEntry() {
                               <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">{formatCurrency(sale.amount)}</td>
                               <td className="py-3 px-4 text-center">
                                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit' ? 'bg-green-100 text-green-800' :
-                                    sale.paymentType === 'Karma' ? 'bg-blue-100 text-blue-800' :
-                                      'bg-purple-100 text-purple-800'}`}>
+                                  sale.paymentType === 'Karma' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-purple-100 text-purple-800'}`}>
                                   {sale.paymentType}
                                 </span>
                               </td>
@@ -694,6 +722,31 @@ export default function SalesEntry() {
                   })()}
                 </tbody>
               </table>
+            </div>
+          );
+        })()}
+        {/* Toplu stok düş butonu */}
+        {(() => {
+          const filteredSales = sales.filter(sale => {
+            const d = new Date(sale.created_at);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            return dateStr === selectedDate;
+          });
+          const pendingCount = filteredSales.filter(s => !s.is_other_product && !s.stockDecreased).length;
+
+          if (pendingCount === 0) return null;
+
+          return (
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={handleDecreaseAllStock}
+                className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg font-medium transition text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+                Tümünü Stoktan Düş ({pendingCount} ürün)
+              </button>
             </div>
           );
         })()}
