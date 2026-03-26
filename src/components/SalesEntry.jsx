@@ -474,10 +474,10 @@ export default function SalesEntry() {
                 </div>
               </div>
               {selectedProduct && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm font-medium text-blue-800">Seçili Ürün</p>
-                  <p className="text-lg font-semibold text-blue-900 mt-1">{selectedBrand} - {selectedModel} - {selectedColorCode}</p>
-                  <p className="text-sm text-blue-700 mt-1">Mevcut Stok: <span className="font-bold text-red-600">{selectedProduct.quantity}</span></p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-4">
+                  <span className="text-sm font-medium text-blue-800">Seçili Ürün:</span>
+                  <span className="text-sm font-semibold text-blue-900">{selectedBrand} - {selectedModel} - {selectedColorCode}</span>
+                  <span className="text-sm text-blue-700">Mevcut Stok: <span className="font-bold text-red-600">{selectedProduct.quantity}</span></span>
                 </div>
               )}
             </>
