@@ -263,7 +263,7 @@ export default function StockManagement() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
                 <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
                   <option value="">Marka Seçin</option>
                   {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
                 </select>
@@ -271,7 +271,7 @@ export default function StockManagement() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
                 <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   disabled={!selectedBrand} required>
                   <option value="">Model Seçin</option>
                   {models.map(model => <option key={model} value={model}>{model}</option>)}
@@ -280,7 +280,7 @@ export default function StockManagement() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu *</label>
                 <select value={selectedColorCode} onChange={(e) => setSelectedColorCode(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   disabled={!selectedModel} required>
                   <option value="">Renk Kodu Seçin</option>
                   {colorCodes.map(item => (
@@ -293,7 +293,7 @@ export default function StockManagement() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">İşlem *</label>
                 <select value={operation} onChange={(e) => setOperation(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                   <option value="add">➕ Stok Ekle (Alım)</option>
                   <option value="subtract">➖ Stok Azalt (Elle Düzeltme)</option>
                 </select>
@@ -301,7 +301,7 @@ export default function StockManagement() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Miktar *</label>
                 <input type="number" min="1" value={quantityChange} onChange={(e) => setQuantityChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="0" required />
               </div>
             </div>
@@ -323,7 +323,7 @@ export default function StockManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
                 <input type="text" value={newProduct.brand}
                   onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   placeholder="Örn: Lanoso" list="brandList" required />
                 <datalist id="brandList">
                   {brands.map(brand => <option key={brand} value={brand} />)}
@@ -333,7 +333,7 @@ export default function StockManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
                 <input type="text" value={newProduct.model}
                   onChange={(e) => setNewProduct({ ...newProduct, model: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   placeholder="Örn: Alara" required />
               </div>
             </div>
@@ -342,14 +342,14 @@ export default function StockManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu *</label>
                 <input type="text" value={newProduct.colorCode}
                   onChange={(e) => setNewProduct({ ...newProduct, colorCode: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   placeholder="Örn: 101, A345" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Başlangıç Miktarı *</label>
                 <input type="number" min="0" value={newProduct.quantity}
                   onChange={(e) => setNewProduct({ ...newProduct, quantity: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   placeholder="0" required />
               </div>
             </div>
@@ -358,7 +358,7 @@ export default function StockManagement() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Birim Fiyat (₺)</label>
                 <input type="number" step="0.01" min="0" value={newProduct.price}
                   onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   placeholder="0.00" />
               </div>
               <div>
@@ -366,7 +366,7 @@ export default function StockManagement() {
                 <div className="flex gap-2">
                   <input type="text" value={newProduct.barcode}
                     onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                     placeholder="Barkod numarası" />
                   <button type="button"
                     onClick={() => { setBarcodeScanTarget('new'); setShowBarcodeScanner(true); }}
@@ -394,7 +394,7 @@ export default function StockManagement() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Marka</label>
             <select value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
               <option value="">Tüm Markalar</option>
               {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
             </select>
@@ -402,7 +402,7 @@ export default function StockManagement() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Model</label>
             <select value={filterModel} onChange={(e) => setFilterModel(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               disabled={!filterBrand}>
               <option value="">Tüm Modeller</option>
               {availableFilterModels.map(model => <option key={model} value={model}>{model}</option>)}
@@ -411,7 +411,7 @@ export default function StockManagement() {
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu</label>
             <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="Renk kodu ile ara..." />
           </div>
         </div>

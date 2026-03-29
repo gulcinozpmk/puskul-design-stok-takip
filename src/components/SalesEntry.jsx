@@ -50,6 +50,9 @@ export default function SalesEntry() {
   const [cardAmount, setCardAmount] = useState('');
   const cashAmount = isSplitPayment ? Math.max(0, cartTotal - (parseFloat(cardAmount) || 0)) : 0;
 
+  const [editingId, setEditingId] = useState(null);
+  const [editValues, setEditValues] = useState({});
+
   //satış listesinde tarih seçme
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
@@ -300,6 +303,23 @@ export default function SalesEntry() {
     }
   };
 
+  const handleEditSave = async (sale) => {
+    try {
+      await updateSale(sale.id, {
+        quantity: parseInt(editValues.quantity) || sale.quantity,
+        amount: parseFloat(editValues.amount) || sale.amount,
+        paymentType: editValues.paymentType || sale.paymentType,
+        cashamount: editValues.paymentType === 'Nakit' ? (parseFloat(editValues.amount) || sale.amount) : 0,
+        cardamount: editValues.paymentType === 'Kredi Kartı' ? (parseFloat(editValues.amount) || sale.amount) : 0,
+      });
+      setEditingId(null);
+      setEditValues({});
+      await loadData();
+    } catch (error) {
+      alert('Hata: ' + error.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -441,7 +461,7 @@ export default function SalesEntry() {
               onChange={(e) => { setIsOtherProduct(e.target.checked); setQrStatus(null); }}
               className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
             <label htmlFor="isOtherProduct" style={{ marginLeft: '5px' }} className="text-base font-medium text-gray-700">
-              Diğer Ürünler (Stoksuz - Şiş, Tığ, Çanta Sapı vb.)
+              Diğer Ürünler (Stoksuz - Düğme, Çanta Sapı vb.)
             </label>
           </div>
 
@@ -451,7 +471,7 @@ export default function SalesEntry() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
                   <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)}
-                    className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                    className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
                     <option value="">Marka Seçin</option>
                     {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
                   </select>
@@ -459,7 +479,7 @@ export default function SalesEntry() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
                   <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedBrand} required>
+                    className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedBrand} required>
                     <option value="">Model Seçin</option>
                     {models.map(model => <option key={model} value={model}>{model}</option>)}
                   </select>
@@ -467,7 +487,7 @@ export default function SalesEntry() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu *</label>
                   <select value={selectedColorCode} onChange={(e) => setSelectedColorCode(e.target.value)}
-                    className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedModel} required>
+                    className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedModel} required>
                     <option value="">Renk Kodu Seçin</option>
                     {colorCodes.map(item => <option key={item.id} value={item.colorCode}>{item.colorCode} - Stok: {item.quantity}</option>)}
                   </select>
@@ -485,7 +505,7 @@ export default function SalesEntry() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Açıklama *</label>
               <input type="text" value={otherDescription} onChange={(e) => setOtherDescription(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="Örn: 2 adet - çanta sapı" required />
             </div>
           )}
@@ -500,17 +520,17 @@ export default function SalesEntry() {
                   const qty = parseInt(val) || 1;
                   if (selectedProduct?.price && selectedProduct.price > 0) setAmount((selectedProduct.price * qty).toFixed(2));
                 }}
-                className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="1" required />
+                className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="1" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Tutar (₺) *</label>
               <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)}
-                className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00" required />
+                className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="0.00" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Not (Opsiyonel)</label>
               <input type="text" value={note} onChange={(e) => setNote(e.target.value)}
-                className="w-full max-w-xs px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Not ekleyin..." />
+                className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Not ekleyin..." />
             </div>
           </div>
 
@@ -679,40 +699,117 @@ export default function SalesEntry() {
                               </td>
                             </tr>
                           )}
-                          {items.map((sale, index) => (
-                            <tr key={sale.id} className={`border-t ${isGroup ? 'border-blue-100 bg-blue-50/20' : 'border-gray-100'} hover:bg-gray-50 transition`}>
-                              <td className="py-3 px-4 text-sm text-gray-600">{formatDate(sale.created_at)}</td>
-                              <td className="py-3 px-4 text-sm">
-                                {sale.is_other_product
-                                  ? <span className="text-purple-700 font-medium">🛠️ {sale.description}</span>
-                                  : <span className="text-gray-800 font-medium">{sale.brand} - {sale.model} - {sale.colorCode}</span>}
-                                {sale.note && <p className="text-xs text-gray-500 mt-1">{sale.note}</p>}
-                              </td>
-                              <td className="py-3 px-4 text-sm text-center text-gray-800">{sale.quantity}</td>
-                              <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">{formatCurrency(sale.amount)}</td>
-                              <td className="py-3 px-4 text-center">
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit' ? 'bg-green-100 text-green-800' :
-                                  sale.paymentType === 'Karma' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-purple-100 text-purple-800'}`}>
-                                  {sale.paymentType}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                <div className="flex items-center justify-center gap-1">
-                                  {!sale.is_other_product ? (
-                                    sale.stockDecreased
-                                      ? <span className="text-green-600 font-bold text-lg">✓</span>
-                                      : <button onClick={() => handleDecreaseStock(sale)} className="p-1 text-orange-600 hover:text-orange-800 rounded transition" title="Stoktan Düş">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
-                                      </button>
-                                  ) : <span className="w-7 inline-block" />}
-                                  <button onClick={() => handleDelete(sale.id)} className="p-1 text-red-600 hover:text-red-800 rounded transition" title="Sil">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                          {items.map((sale, index) => {
+                            const isEditing = editingId === sale.id;
+                            const canEdit = !sale.stockDecreased;
+
+                            return (
+                              <tr key={sale.id} className={`border-t ${isGroup ? 'border-blue-100 bg-blue-50/20' : 'border-gray-100'} hover:bg-gray-50 transition`}>
+                                <td className="py-3 px-4 text-sm text-gray-600">{formatDate(sale.created_at)}</td>
+                                <td className="py-3 px-4 text-sm">
+                                  {sale.is_other_product
+                                    ? <span className="text-purple-700 font-medium">🛠️ {sale.description}</span>
+                                    : <span className="text-gray-800 font-medium">{sale.brand} - {sale.model} - {sale.colorCode}</span>}
+                                  {sale.note && <p className="text-xs text-gray-500 mt-1">{sale.note}</p>}
+                                </td>
+
+                                {/* Miktar */}
+                                <td className="py-3 px-4 text-sm text-center text-gray-800">
+                                  {isEditing ? (
+                                    <input
+                                      type="number" min="1"
+                                      value={editValues.quantity}
+                                      onChange={e => setEditValues(prev => ({ ...prev, quantity: e.target.value }))}
+                                      className="w-16 px-2 py-1 border border-blue-300 rounded text-center focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                  ) : sale.quantity}
+                                </td>
+
+                                {/* Tutar */}
+                                <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
+                                  {isEditing ? (
+                                    <input
+                                      type="number" step="0.01" min="0"
+                                      value={editValues.amount}
+                                      onChange={e => setEditValues(prev => ({ ...prev, amount: e.target.value }))}
+                                      className="w-24 px-2 py-1 border border-blue-300 rounded text-right focus:ring-2 focus:ring-blue-500 text-sm"
+                                    />
+                                  ) : formatCurrency(sale.amount)}
+                                </td>
+
+                                {/* Ödeme */}
+                                <td className="py-3 px-4 text-center">
+                                  {isEditing ? (
+                                    <select
+                                      value={editValues.paymentType}
+                                      onChange={e => setEditValues(prev => ({ ...prev, paymentType: e.target.value }))}
+                                      className="px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 text-sm"
+                                    >
+                                      <option value="Nakit">Nakit</option>
+                                      <option value="Kredi Kartı">Kredi Kartı</option>
+                                    </select>
+                                  ) : (
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit' ? 'bg-green-100 text-green-800' :
+                                        sale.paymentType === 'Karma' ? 'bg-blue-100 text-blue-800' :
+                                          'bg-purple-100 text-purple-800'}`}>
+                                      {sale.paymentType}
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* İşlem */}
+                                <td className="py-3 px-4 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {isEditing ? (
+                                      <>
+                                        <button onClick={() => handleEditSave(sale)}
+                                          className="p-1 text-green-600 hover:text-green-800 rounded transition" title="Kaydet">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                          </svg>
+                                        </button>
+                                        <button onClick={() => { setEditingId(null); setEditValues({}); }}
+                                          className="p-1 text-gray-400 hover:text-gray-600 rounded transition" title="İptal">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        {/* Kalem ikonu - sadece edit edilebilir satırlarda */}
+                                        {canEdit && (
+                                          <button onClick={() => {
+                                            setEditingId(sale.id);
+                                            setEditValues({
+                                              quantity: sale.quantity,
+                                              amount: sale.amount,
+                                              paymentType: sale.paymentType,
+                                            });
+                                          }}
+                                            className="p-1 text-blue-400 hover:text-blue-600 rounded transition" title="Düzenle">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                          </button>
+                                        )}
+                                        {!sale.is_other_product ? (
+                                          sale.stockDecreased
+                                            ? <span className="text-green-600 font-bold text-lg">✓</span>
+                                            : <button onClick={() => handleDecreaseStock(sale)} className="p-1 text-orange-600 hover:text-orange-800 rounded transition" title="Stoktan Düş">
+                                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+                                            </button>
+                                        ) : <span className="w-7 inline-block" />}
+                                        <button onClick={() => handleDelete(sale.id)} className="p-1 text-red-600 hover:text-red-800 rounded transition" title="Sil">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                           {isGroup && (
                             <tr><td colSpan={6} className="border-b-2 border-blue-200 p-0" /></tr>
                           )}
