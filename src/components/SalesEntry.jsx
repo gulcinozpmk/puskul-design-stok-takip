@@ -305,12 +305,35 @@ export default function SalesEntry() {
 
   const handleEditSave = async (sale) => {
     try {
+      const newAmount = parseFloat(editValues.amount) || sale.amount;
+      const newPaymentType = editValues.paymentType || sale.paymentType;
+      const newBrand = editValues.brand ?? sale.brand;
+      const newModel = editValues.model ?? sale.model;
+      const newColorCode = editValues.colorCode ?? sale.colorCode;
+
+      // Stoklu ürünse kombinasyonu kontrol et
+      if (!sale.is_other_product) {
+        const allStock = await getStock();
+        const found = allStock.find(p =>
+          p.brand?.toLowerCase() === newBrand?.toLowerCase() &&
+          p.model?.toLowerCase() === newModel?.toLowerCase() &&
+          p.colorCode?.toLowerCase() === newColorCode?.toLowerCase()
+        );
+        if (!found) {
+          alert(`❌ "${newBrand} - ${newModel} - ${newColorCode}" stokta bulunamadı. Lütfen geçerli bir ürün girin.`);
+          return;
+        }
+      }
+
       await updateSale(sale.id, {
         quantity: parseInt(editValues.quantity) || sale.quantity,
-        amount: parseFloat(editValues.amount) || sale.amount,
-        paymentType: editValues.paymentType || sale.paymentType,
-        cashamount: editValues.paymentType === 'Nakit' ? (parseFloat(editValues.amount) || sale.amount) : 0,
-        cardamount: editValues.paymentType === 'Kredi Kartı' ? (parseFloat(editValues.amount) || sale.amount) : 0,
+        amount: newAmount,
+        paymentType: newPaymentType,
+        cashamount: newPaymentType === 'Nakit' ? newAmount : 0,
+        cardamount: newPaymentType === 'Kredi Kartı' ? newAmount : 0,
+        brand: newBrand,
+        model: newModel,
+        colorCode: newColorCode,
       });
       setEditingId(null);
       setEditValues({});
@@ -707,10 +730,38 @@ export default function SalesEntry() {
                               <tr key={sale.id} className={`border-t ${isGroup ? 'border-blue-100 bg-blue-50/20' : 'border-gray-100'} hover:bg-gray-50 transition`}>
                                 <td className="py-3 px-4 text-sm text-gray-600">{formatDate(sale.created_at)}</td>
                                 <td className="py-3 px-4 text-sm">
-                                  {sale.is_other_product
-                                    ? <span className="text-purple-700 font-medium">🛠️ {sale.description}</span>
-                                    : <span className="text-gray-800 font-medium">{sale.brand} - {sale.model} - {sale.colorCode}</span>}
-                                  {sale.note && <p className="text-xs text-gray-500 mt-1">{sale.note}</p>}
+                                  {isEditing && !sale.is_other_product ? (
+                                    <div className="flex gap-1">
+                                      <input
+                                        type="text"
+                                        value={editValues.brand}
+                                        onChange={e => setEditValues(prev => ({ ...prev, brand: e.target.value }))}
+                                        className="w-24 px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Marka"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={editValues.model}
+                                        onChange={e => setEditValues(prev => ({ ...prev, model: e.target.value }))}
+                                        className="w-24 px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Model"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={editValues.colorCode}
+                                        onChange={e => setEditValues(prev => ({ ...prev, colorCode: e.target.value }))}
+                                        className="w-20 px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Renk Kodu"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {sale.is_other_product
+                                        ? <span className="text-purple-700 font-medium">🛠️ {sale.description}</span>
+                                        : <span className="text-gray-800 font-medium">{sale.brand} - {sale.model} - {sale.colorCode}</span>}
+                                      {sale.note && <p className="text-xs text-gray-500 mt-1">{sale.note}</p>}
+                                    </>
+                                  )}
                                 </td>
 
                                 {/* Miktar */}
@@ -750,8 +801,8 @@ export default function SalesEntry() {
                                     </select>
                                   ) : (
                                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${sale.paymentType === 'Nakit' ? 'bg-green-100 text-green-800' :
-                                        sale.paymentType === 'Karma' ? 'bg-blue-100 text-blue-800' :
-                                          'bg-purple-100 text-purple-800'}`}>
+                                      sale.paymentType === 'Karma' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-purple-100 text-purple-800'}`}>
                                       {sale.paymentType}
                                     </span>
                                   )}
@@ -785,6 +836,9 @@ export default function SalesEntry() {
                                               quantity: sale.quantity,
                                               amount: sale.amount,
                                               paymentType: sale.paymentType,
+                                              brand: sale.brand,
+                                              model: sale.model,
+                                              colorCode: sale.colorCode,
                                             });
                                           }}
                                             className="p-1 text-blue-400 hover:text-blue-600 rounded transition" title="Düzenle">
