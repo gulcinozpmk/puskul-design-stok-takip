@@ -334,6 +334,7 @@ export default function SalesEntry() {
         brand: newBrand,
         model: newModel,
         colorCode: newColorCode,
+        description: sale.is_other_product ? (editValues.description ?? sale.description) : sale.description,
       });
       setEditingId(null);
       setEditValues({});
@@ -754,6 +755,14 @@ export default function SalesEntry() {
                                         placeholder="Renk Kodu"
                                       />
                                     </div>
+                                  ) : isEditing && sale.is_other_product ? (
+                                    <input
+                                      type="text"
+                                      value={editValues.description}
+                                      onChange={e => setEditValues(prev => ({ ...prev, description: e.target.value }))}
+                                      className="w-full px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                                      placeholder="Açıklama"
+                                    />
                                   ) : (
                                     <>
                                       {sale.is_other_product
@@ -839,6 +848,7 @@ export default function SalesEntry() {
                                               brand: sale.brand,
                                               model: sale.model,
                                               colorCode: sale.colorCode,
+                                              description: sale.description,
                                             });
                                           }}
                                             className="p-1 text-blue-400 hover:text-blue-600 rounded transition" title="Düzenle">
