@@ -5,6 +5,7 @@ import StockManagement from './components/StockManagement';
 import Reports from './components/Reports';
 import Login from './components/Login';
 import { supabase } from './services/supabaseClient';
+import StockView from './components/StockView';
 import './index.css';
 
 function App() {
@@ -47,6 +48,7 @@ function App() {
       case 'dashboard': return <Dashboard />;
       case 'sales': return <SalesEntry />;
       case 'stock': return <StockManagement />;
+      case 'stockview': return <StockView />;
       case 'reports': return <Reports key={reportsKey} />;
       default: return <Dashboard />;
     }
@@ -55,6 +57,7 @@ function App() {
   const navItems = [
     { id: 'sales', label: 'Satış Girişi', icon: '💰' },
     { id: 'stock', label: 'Stok Yönetimi', icon: '📦' },
+    { id: 'stockview', label: 'Stok Görüntüle', icon: '🔍' },
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'reports', label: 'Raporlar', icon: '📈' },
   ];

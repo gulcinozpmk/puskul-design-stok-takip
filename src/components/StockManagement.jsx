@@ -36,6 +36,12 @@ export default function StockManagement() {
     brand: '', model: '', colorCode: '', quantity: '', price: '', barcode: '',
   });
 
+  //Fiayt Güncelleme için
+  const [priceUpdateBrand, setPriceUpdateBrand] = useState('');
+  const [priceUpdateModel, setPriceUpdateModel] = useState('');
+  const [priceUpdateModels, setPriceUpdateModels] = useState([]);
+  const [newPrice, setNewPrice] = useState('');
+
   // Barkod düzenleme
   const [editingBarcode, setEditingBarcode] = useState(null); // { id, barcode }
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
@@ -88,6 +94,21 @@ export default function StockManagement() {
     };
     loadColorCodes();
   }, [selectedModel]);
+
+  // Fiyat güncelleme
+  useEffect(() => {
+    const loadPriceModels = async () => {
+      if (priceUpdateBrand) {
+        const brandModels = await getModelsByBrand(priceUpdateBrand);
+        setPriceUpdateModels(brandModels);
+        setPriceUpdateModel('');
+      } else {
+        setPriceUpdateModels([]);
+        setPriceUpdateModel('');
+      }
+    };
+    loadPriceModels();
+  }, [priceUpdateBrand]);
 
   // Barkod tarama sonucu
   const handleBarcodeScan = (rawValue) => {
@@ -206,6 +227,32 @@ export default function StockManagement() {
 
   const totalValue = sortedStock.reduce((sum, item) => sum + (item.quantity * item.price), 0);
 
+  // Fiyat güncelleme
+  const handlePriceUpdate = async (e) => {
+    e.preventDefault();
+    if (!priceUpdateBrand || !priceUpdateModel || !newPrice) {
+      alert('Lütfen tüm alanları doldurun!'); return;
+    }
+    const price = parseFloat(newPrice);
+    if (price < 0) { alert('Fiyat negatif olamaz!'); return; }
+
+    const affected = stock.filter(s => s.brand === priceUpdateBrand && s.model === priceUpdateModel);
+    if (affected.length === 0) { alert('Ürün bulunamadı!'); return; }
+
+    if (!confirm(`${priceUpdateBrand} - ${priceUpdateModel} için ${affected.length} renk ${formatCurrency(price)} olarak güncellenecek. Onaylıyor musunuz?`)) return;
+
+    try {
+      for (const item of affected) {
+        await updateStock(item.id, { price });
+      }
+      await loadData();
+      setPriceUpdateBrand(''); setPriceUpdateModel(''); setNewPrice('');
+      alert(`${affected.length} ürün fiyatı güncellendi!`);
+    } catch (error) {
+      alert('Hata: ' + error.message);
+    }
+  };
+
   //Export Excel
   const handleExportExcel = () => {
     import('xlsx').then(XLSX => {
@@ -251,6 +298,12 @@ export default function StockManagement() {
           className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-colors ${activeTab === 'new' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
         >
           ✨ Yeni Ürün Ekle
+        </button>
+        <button
+          onClick={() => setActiveTab('price')}
+          className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-colors ${activeTab === 'price' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+        >
+          💰 Fiyat Güncelle
         </button>
       </div>
 
@@ -387,6 +440,58 @@ export default function StockManagement() {
       )}
 
       {activeTab === 'new' && <ExcelImport onImportComplete={loadData} />}
+
+      {activeTab === 'price' && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Fiyat Güncelle</h2>
+          <form onSubmit={handlePriceUpdate} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
+                <select value={priceUpdateBrand} onChange={e => setPriceUpdateBrand(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" required>
+                  <option value="">Marka Seçin</option>
+                  {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
+                <select value={priceUpdateModel} onChange={e => setPriceUpdateModel(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  disabled={!priceUpdateBrand} required>
+                  <option value="">Model Seçin</option>
+                  {priceUpdateModels.map(model => <option key={model} value={model}>{model}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Seçili modelin mevcut fiyatını göster */}
+            {priceUpdateModel && (() => {
+              const sample = stock.find(s => s.brand === priceUpdateBrand && s.model === priceUpdateModel);
+              const count = stock.filter(s => s.brand === priceUpdateBrand && s.model === priceUpdateModel).length;
+              return sample ? (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg px-4 py-2 flex items-center gap-4">
+                  <span className="text-sm text-purple-700">Mevcut Fiyat: <strong>{formatCurrency(sample.price)}</strong></span>
+                  <span className="text-sm text-purple-600">{count} renk etkilenecek</span>
+                </div>
+              ) : null;
+            })()}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Yeni Fiyat (₺) *</label>
+              <input type="number" step="0.01" min="0" value={newPrice}
+                onChange={e => setNewPrice(e.target.value)}
+                className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                placeholder="0.00" required />
+            </div>
+
+            <button type="submit"
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition">
+              💰 Fiyatı Güncelle
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Filtreler */}
       <div className="bg-white rounded-lg shadow-md p-6">
