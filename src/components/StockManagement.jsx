@@ -40,7 +40,8 @@ export default function StockManagement() {
   const [priceUpdateBrand, setPriceUpdateBrand] = useState('');
   const [priceUpdateModel, setPriceUpdateModel] = useState('');
   const [priceUpdateModels, setPriceUpdateModels] = useState([]);
-  const [newPrice, setNewPrice] = useState('');
+  //const [newPrice, setNewPrice] = useState(''); -- bu tekli fiyat güncelleme içindi değiştirdik.
+  const [newPrices, setNewPrices] = useState({});
 
   // Barkod düzenleme
   const [editingBarcode, setEditingBarcode] = useState(null); // { id, barcode }
@@ -102,9 +103,11 @@ export default function StockManagement() {
         const brandModels = await getModelsByBrand(priceUpdateBrand);
         setPriceUpdateModels(brandModels);
         setPriceUpdateModel('');
+        setNewPrices({}); // Marka değişince sıfırla
       } else {
         setPriceUpdateModels([]);
         setPriceUpdateModel('');
+        setNewPrices({});
       }
     };
     loadPriceModels();
@@ -228,26 +231,23 @@ export default function StockManagement() {
   const totalValue = sortedStock.reduce((sum, item) => sum + (item.quantity * item.price), 0);
 
   // Fiyat güncelleme
-  const handlePriceUpdate = async (e) => {
-    e.preventDefault();
-    if (!priceUpdateBrand || !priceUpdateModel || !newPrice) {
-      alert('Lütfen tüm alanları doldurun!'); return;
-    }
-    const price = parseFloat(newPrice);
-    if (price < 0) { alert('Fiyat negatif olamaz!'); return; }
+  const handleBulkPriceUpdate = async () => {
+    const updates = Object.entries(newPrices).filter(([_, v]) => v !== '');
+    if (updates.length === 0) return;
 
-    const affected = stock.filter(s => s.brand === priceUpdateBrand && s.model === priceUpdateModel);
-    if (affected.length === 0) { alert('Ürün bulunamadı!'); return; }
-
-    if (!confirm(`${priceUpdateBrand} - ${priceUpdateModel} için ${affected.length} renk ${formatCurrency(price)} olarak güncellenecek. Onaylıyor musunuz?`)) return;
+    const lines = updates.map(([model, price]) => `${model}: ${formatCurrency(parseFloat(price))}`).join('\n');
+    if (!confirm(`Aşağıdaki modeller güncellenecek:\n\n${lines}\n\nOnaylıyor musunuz?`)) return;
 
     try {
-      for (const item of affected) {
-        await updateStock(item.id, { price });
+      for (const [model, price] of updates) {
+        const affected = stock.filter(s => s.brand === priceUpdateBrand && s.model === model);
+        for (const item of affected) {
+          await updateStock(item.id, { price: parseFloat(price) });
+        }
       }
       await loadData();
-      setPriceUpdateBrand(''); setPriceUpdateModel(''); setNewPrice('');
-      alert(`${affected.length} ürün fiyatı güncellendi!`);
+      setNewPrices({});
+      alert(`${updates.length} model başarıyla güncellendi!`);
     } catch (error) {
       alert('Hata: ' + error.message);
     }
@@ -444,52 +444,83 @@ export default function StockManagement() {
       {activeTab === 'price' && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Fiyat Güncelle</h2>
-          <form onSubmit={handlePriceUpdate} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
-                <select value={priceUpdateBrand} onChange={e => setPriceUpdateBrand(e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" required>
-                  <option value="">Marka Seçin</option>
-                  {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
-                <select value={priceUpdateModel} onChange={e => setPriceUpdateModel(e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                  disabled={!priceUpdateBrand} required>
-                  <option value="">Model Seçin</option>
-                  {priceUpdateModels.map(model => <option key={model} value={model}>{model}</option>)}
-                </select>
-              </div>
-            </div>
 
-            {/* Seçili modelin mevcut fiyatını göster */}
-            {priceUpdateModel && (() => {
-              const sample = stock.find(s => s.brand === priceUpdateBrand && s.model === priceUpdateModel);
-              const count = stock.filter(s => s.brand === priceUpdateBrand && s.model === priceUpdateModel).length;
-              return sample ? (
-                <div className="bg-purple-50 border border-purple-200 rounded-lg px-4 py-2 flex items-center gap-4">
-                  <span className="text-sm text-purple-700">Mevcut Fiyat: <strong>{formatCurrency(sample.price)}</strong></span>
-                  <span className="text-sm text-purple-600">{count} renk etkilenecek</span>
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
+            <select value={priceUpdateBrand} onChange={e => setPriceUpdateBrand(e.target.value)}
+              className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+              <option value="">Marka Seçin</option>
+              {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
+            </select>
+          </div>
+
+          {priceUpdateBrand && (() => {
+            // O markanın modellerini ve mevcut fiyatlarını getir
+            const brandModels = [...new Set(stock.filter(s => s.brand === priceUpdateBrand).map(s => s.model))].sort();
+
+            return brandModels.length === 0 ? (
+              <p className="text-gray-500 text-sm">Bu markaya ait model bulunamadı.</p>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Model</th>
+                        <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Renk Sayısı</th>
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Mevcut Fiyat</th>
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Yeni Fiyat</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {brandModels.map((model, index) => {
+                        const sample = stock.find(s => s.brand === priceUpdateBrand && s.model === model);
+                        const colorCount = stock.filter(s => s.brand === priceUpdateBrand && s.model === model).length;
+                        const currentPrice = sample?.price || 0;
+
+                        return (
+                          <tr key={model} className={`border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                            <td className="py-3 px-4 text-sm font-medium text-gray-800">{model}</td>
+                            <td className="py-3 px-4 text-sm text-center text-gray-600">{colorCount} renk</td>
+                            <td className="py-3 px-4 text-sm text-right">
+                              <span className="text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg text-sm">
+                                {formatCurrency(currentPrice)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <input
+                                type="number" step="0.01" min="0"
+                                value={newPrices[model] || ''}
+                                onChange={e => setNewPrices(prev => ({ ...prev, [model]: e.target.value }))}
+                                className="w-32 px-3 py-1.5 text-sm border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-right"
+                                placeholder="Değiştir..."
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              ) : null;
-            })()}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Yeni Fiyat (₺) *</label>
-              <input type="number" step="0.01" min="0" value={newPrice}
-                onChange={e => setNewPrice(e.target.value)}
-                className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                placeholder="0.00" required />
-            </div>
+                {/* Kaç model güncellenecek özeti */}
+                {Object.values(newPrices).some(v => v !== '') && (
+                  <div className="mt-4 bg-purple-50 border border-purple-200 rounded-lg px-4 py-2">
+                    <span className="text-sm text-purple-700">
+                      {Object.values(newPrices).filter(v => v !== '').length} model güncellemeye hazır
+                    </span>
+                  </div>
+                )}
 
-            <button type="submit"
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition">
-              💰 Fiyatı Güncelle
-            </button>
-          </form>
+                <button
+                  onClick={handleBulkPriceUpdate}
+                  disabled={!Object.values(newPrices).some(v => v !== '')}
+                  className="mt-4 w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition">
+                  💰 Toplu Fiyat Güncelle
+                </button>
+              </>
+            );
+          })()}
         </div>
       )}
 

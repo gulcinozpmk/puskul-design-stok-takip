@@ -106,6 +106,7 @@ export default function SalesEntry() {
         setColorCodes([]);
         setSelectedColorCode(prev => prev || '');
         setSelectedProduct(null);
+        setAmount('');
       } else {
         setModels([]); setSelectedModel(''); setColorCodes([]); setSelectedColorCode(''); setSelectedProduct(null);
       }
@@ -120,6 +121,7 @@ export default function SalesEntry() {
         setColorCodes(colors);
         setSelectedColorCode(prev => prev || '');
         setSelectedProduct(null);
+        setAmount('');
       } else {
         setColorCodes([]); setSelectedColorCode(''); setSelectedProduct(null);
       }
