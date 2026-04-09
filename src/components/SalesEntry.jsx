@@ -60,6 +60,14 @@ export default function SalesEntry() {
   });
   const [showCalendar, setShowCalendar] = useState(false);
 
+  //Satış tarihi seçmek için state
+  const [saleDate, setSaleDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+
+  const [showSaleDateCalendar, setShowSaleDateCalendar] = useState(false);
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
@@ -203,6 +211,7 @@ export default function SalesEntry() {
       brand: isOtherProduct ? null : selectedBrand,
       model: isOtherProduct ? null : selectedModel,
       colorCode: isOtherProduct ? null : selectedColorCode,
+      saleDate,
     };
 
     setCart(prev => [...prev, item]);
@@ -238,6 +247,7 @@ export default function SalesEntry() {
             cashAmount: parseFloat((cash * ratio).toFixed(2)),
             cardAmount: parseFloat((card * ratio).toFixed(2)),
             basket_id: basketId,
+            created_at: item.saleDate ? `${item.saleDate}T12:00:00` : undefined,
           });
         } else {
           await addSale({
@@ -246,6 +256,7 @@ export default function SalesEntry() {
             cashAmount: cartPaymentType === 'Nakit' ? item.amount : 0,
             cardAmount: cartPaymentType === 'Kredi Kartı' ? item.amount : 0,
             basket_id: basketId,
+            created_at: item.saleDate ? `${item.saleDate}T12:00:00` : undefined,
           });
         }
       }
@@ -464,15 +475,99 @@ export default function SalesEntry() {
           <h2 className="text-xl font-semibold text-gray-800">
             {cart.length > 0 ? '➕ Sepete Ürün Ekle' : 'Yeni Satış'}
           </h2>
-          {!isOtherProduct && (
-            <button type="button" onClick={() => { setQrStatus(null); setShowQRScanner(true); }}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4 4h4v4H4V4zm12 0h4v4h-4V4zM4 16h4v4H4v-4z" />
-              </svg>
-              QR / Barkod Tara
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {/* Tarih seçici */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">Satış Tarihi:</span>
+
+              {/* Önceki gün */}
+              <button type="button"
+                onClick={() => {
+                  const d = new Date(saleDate);
+                  d.setDate(d.getDate() - 1);
+                  const newDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  setSaleDate(newDate);
+                  setSelectedDate(newDate);
+                }}
+                className="p-1.5 rounded-lg hover:bg-gray-200 transition text-gray-600">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              {/* Tarih göstergesi - tıklanabilir */}
+              <div className="relative">
+                <button type="button"
+                  onClick={() => setShowSaleDateCalendar(prev => !prev)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg min-w-[100px] justify-center transition">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {(() => {
+                    const today = new Date();
+                    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    if (saleDate === todayStr) return 'Bugün';
+                    const d = new Date(saleDate);
+                    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+                  })()}
+                </button>
+
+                {showSaleDateCalendar && (
+                  <CalendarPopup
+                    selectedDate={saleDate}
+                    onSelect={(date) => {
+                      setSaleDate(date);
+                      setSelectedDate(date);
+                    }}
+                    onClose={() => setShowSaleDateCalendar(false)}
+                  />
+                )}
+              </div>
+              {/* Sonraki gün */}
+              <button type="button"
+                onClick={() => {
+                  const today = new Date();
+                  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                  if (saleDate >= todayStr) return;
+                  const d = new Date(saleDate);
+                  d.setDate(d.getDate() + 1);
+                  const newDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  setSaleDate(newDate);
+                  setSelectedDate(newDate);
+                }}
+                className={`p-1.5 rounded-lg transition ${(() => {
+                  const today = new Date();
+                  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                  return saleDate >= todayStr ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-gray-200 text-gray-600';
+                })()}`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* Bugüne dön */}
+              {(() => {
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                return saleDate !== todayStr ? (
+                  <button type="button"
+                    onClick={() => { setSaleDate(todayStr); setSelectedDate(todayStr); }}
+                    className="px-3 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium">
+                    Bugün
+                  </button>
+                ) : null;
+              })()}
+            </div>
+            {!isOtherProduct && (
+              <button type="button" onClick={() => { setQrStatus(null); setShowQRScanner(true); }}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4 4h4v4H4V4zm12 0h4v4h-4V4zM4 16h4v4H4v-4z" />
+                </svg>
+                QR / Barkod Tara
+              </button>
+            )}
+          </div>
         </div>
 
         {qrStatus && (

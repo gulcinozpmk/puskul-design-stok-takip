@@ -170,6 +170,10 @@ export const addSale = async (sale) => {
       basket_id: sale.basket_id || null,
     };
 
+    if (sale.created_at) {
+      saleData.created_at = sale.created_at;
+    }
+
     // Diğer ürün mü yoksa normal ürün mü?
     if (sale.is_other_product) {
       // STOKSUZ ÜRÜN
