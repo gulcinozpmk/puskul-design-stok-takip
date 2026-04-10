@@ -174,6 +174,8 @@ export const addSale = async (sale) => {
       saleData.created_at = sale.created_at;
     }
 
+    saleData.is_return = sale.is_return || false;
+
     // Diğer ürün mü yoksa normal ürün mü?
     if (sale.is_other_product) {
       // STOKSUZ ÜRÜN
