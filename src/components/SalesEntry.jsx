@@ -22,6 +22,8 @@ export default function SalesEntry() {
   const [selectedModel, setSelectedModel] = useState('');
   const [colorCodes, setColorCodes] = useState([]);
   const [selectedColorCode, setSelectedColorCode] = useState('');
+  const [selectedColorCodes, setSelectedColorCodes] = useState([]);
+  const [showColorDropdown, setShowColorDropdown] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
 
   const [quantity, setQuantity] = useState(1);
@@ -38,7 +40,6 @@ export default function SalesEntry() {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [qrStatus, setQrStatus] = useState(null);
 
-  // 🛒 SEPET
   const [cart, setCart] = useState([]);
   const [cartPaymentType, setCartPaymentType] = useState('Nakit');
   const [isSavingCart, setIsSavingCart] = useState(false);
@@ -54,19 +55,28 @@ export default function SalesEntry() {
   const [editingId, setEditingId] = useState(null);
   const [editValues, setEditValues] = useState({});
 
-  // Satış listesinde tarih seçme
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [showCalendar, setShowCalendar] = useState(false);
 
-  // Satış tarihi seçmek için state
   const [saleDate, setSaleDate] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [showSaleDateCalendar, setShowSaleDateCalendar] = useState(false);
+
+  // Dışına tıklayınca renk dropdown'ı kapat
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.color-dropdown-container')) {
+        setShowColorDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => { loadData(); }, []);
 
@@ -111,11 +121,15 @@ export default function SalesEntry() {
         setModels(brandModels);
         setSelectedModel(prev => prev || '');
         setColorCodes([]);
+        setSelectedColorCodes([]);
         setSelectedColorCode(prev => prev || '');
         setSelectedProduct(null);
         setAmount('');
+        setShowColorDropdown(false);
       } else {
-        setModels([]); setSelectedModel(''); setColorCodes([]); setSelectedColorCode(''); setSelectedProduct(null);
+        setModels([]); setSelectedModel(''); setColorCodes([]);
+        setSelectedColorCodes([]); setSelectedColorCode(''); setSelectedProduct(null);
+        setShowColorDropdown(false);
       }
     };
     loadModels();
@@ -126,11 +140,17 @@ export default function SalesEntry() {
       if (selectedBrand && selectedModel) {
         const colors = await getColorCodesByBrandModel(selectedBrand, selectedModel);
         setColorCodes(colors);
-        setSelectedColorCode(prev => prev || '');
+        setSelectedColorCodes([]);
+        setSelectedColorCode('');
         setSelectedProduct(null);
         setAmount('');
+        setShowColorDropdown(false);
       } else {
-        setColorCodes([]); setSelectedColorCode(''); setSelectedProduct(null);
+        setColorCodes([]);
+        setSelectedColorCodes([]);
+        setSelectedColorCode('');
+        setSelectedProduct(null);
+        setShowColorDropdown(false);
       }
     };
     loadColorCodes();
@@ -173,7 +193,9 @@ export default function SalesEntry() {
         const colors = await getColorCodesByBrandModel(found.brand, found.model);
         setModels(brandModels); setColorCodes(colors);
         setSelectedBrand(found.brand); setSelectedModel(found.model);
-        setSelectedColorCode(found.colorCode); setSelectedProduct(found);
+        setSelectedColorCode(found.colorCode);
+        setSelectedColorCodes([found.colorCode]);
+        setSelectedProduct(found);
         if (found.price && found.price > 0) setAmount(found.price.toString());
         setQrStatus({ type: 'success', message: `✅ Ürün bulundu: ${found.brand} - ${found.model} - ${found.colorCode}` });
       } else {
@@ -186,6 +208,7 @@ export default function SalesEntry() {
 
   const resetForm = () => {
     setSelectedBrand(''); setSelectedModel(''); setSelectedColorCode('');
+    setSelectedColorCodes([]); setShowColorDropdown(false);
     setSelectedProduct(null); setQuantity(1); setAmount('');
     setNote(''); setIsOtherProduct(false); setOtherDescription(''); setQrStatus(null);
   };
@@ -195,25 +218,44 @@ export default function SalesEntry() {
     if (isOtherProduct) {
       if (!otherDescription || !amount) { alert('Lütfen açıklama ve tutar girin!'); return; }
     } else {
-      if (!selectedBrand || !selectedModel || !selectedColorCode) { alert('Lütfen ürün seçin!'); return; }
+      if (!selectedBrand || !selectedModel || selectedColorCodes.length === 0) {
+        alert('Lütfen en az bir renk kodu seçin!'); return;
+      }
       if (!amount) { alert('Lütfen tutar girin!'); return; }
     }
 
-    const item = {
-      id: Date.now(),
-      quantity: parseInt(quantity) || 1,
-      amount: parseFloat(amount),
-      note,
-      is_other_product: isOtherProduct,
-      is_return: false,
-      description: isOtherProduct ? otherDescription : null,
-      brand: isOtherProduct ? null : selectedBrand,
-      model: isOtherProduct ? null : selectedModel,
-      colorCode: isOtherProduct ? null : selectedColorCode,
-      saleDate,
-    };
-
-    setCart(prev => [...prev, item]);
+    if (!isOtherProduct && selectedColorCodes.length > 1) {
+      const items = selectedColorCodes.map(colorCode => ({
+        id: Date.now() + Math.random(),
+        quantity: parseInt(quantity) || 1,
+        amount: parseFloat(amount),
+        note,
+        is_other_product: false,
+        is_return: false,
+        description: null,
+        brand: selectedBrand,
+        model: selectedModel,
+        colorCode,
+        saleDate,
+      }));
+      setCart(prev => [...prev, ...items]);
+    } else {
+      const colorCode = isOtherProduct ? null : selectedColorCodes[0];
+      const item = {
+        id: Date.now(),
+        quantity: parseInt(quantity) || 1,
+        amount: parseFloat(amount),
+        note,
+        is_other_product: isOtherProduct,
+        is_return: false,
+        description: isOtherProduct ? otherDescription : null,
+        brand: isOtherProduct ? null : selectedBrand,
+        model: isOtherProduct ? null : selectedModel,
+        colorCode: isOtherProduct ? null : colorCode,
+        saleDate,
+      };
+      setCart(prev => [...prev, item]);
+    }
     resetForm();
   };
 
@@ -399,7 +441,6 @@ export default function SalesEntry() {
 
       {showQRScanner && <QRScanner onScan={handleQRScan} onClose={() => setShowQRScanner(false)} />}
 
-      {/* Bugünkü Toplam */}
       {showTotals && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
@@ -417,7 +458,6 @@ export default function SalesEntry() {
         </div>
       )}
 
-      {/* 🛒 SEPET */}
       {cart.length > 0 && (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-xl shadow-md overflow-hidden">
           <div className="px-6 py-4 bg-amber-400 flex items-center justify-between">
@@ -525,24 +565,20 @@ export default function SalesEntry() {
             {cart.length > 0 ? '➕ Sepete Ürün Ekle' : 'Yeni Satış'}
           </h2>
           <div className="flex items-center gap-3">
-            {/* Satış Tarihi Navigatör */}
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-600">Satış Tarihi:</span>
-
               <button type="button"
                 onClick={() => {
                   const d = new Date(saleDate);
                   d.setDate(d.getDate() - 1);
                   const newDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                  setSaleDate(newDate);
-                  setSelectedDate(newDate);
+                  setSaleDate(newDate); setSelectedDate(newDate);
                 }}
                 className="p-1.5 rounded-lg hover:bg-gray-200 transition text-gray-600">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-
               <div className="relative">
                 <button type="button"
                   onClick={() => setShowSaleDateCalendar(prev => !prev)}
@@ -566,7 +602,6 @@ export default function SalesEntry() {
                   />
                 )}
               </div>
-
               <button type="button"
                 onClick={() => {
                   const today = new Date();
@@ -575,8 +610,7 @@ export default function SalesEntry() {
                   const d = new Date(saleDate);
                   d.setDate(d.getDate() + 1);
                   const newDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                  setSaleDate(newDate);
-                  setSelectedDate(newDate);
+                  setSaleDate(newDate); setSelectedDate(newDate);
                 }}
                 className={`p-1.5 rounded-lg transition ${(() => {
                   const today = new Date();
@@ -587,7 +621,6 @@ export default function SalesEntry() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
-
               {(() => {
                 const today = new Date();
                 const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -600,7 +633,6 @@ export default function SalesEntry() {
                 ) : null;
               })()}
             </div>
-
             {!isOtherProduct && (
               <button type="button" onClick={() => { setQrStatus(null); setShowQRScanner(true); }}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
@@ -649,19 +681,74 @@ export default function SalesEntry() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu *</label>
-                  <select value={selectedColorCode} onChange={(e) => setSelectedColorCode(e.target.value)}
-                    className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedModel} required>
-                    <option value="">Renk Kodu Seçin</option>
-                    {colorCodes.map(item => <option key={item.id} value={item.colorCode}>{item.colorCode} - Stok: {item.quantity}</option>)}
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Renk Kodu * <span className="text-xs text-gray-400">(birden fazla seçebilirsiniz)</span>
+                  </label>
+                  <div className="relative color-dropdown-container max-w-xs">
+                    <button
+                      type="button"
+                      disabled={!selectedModel}
+                      onClick={() => setShowColorDropdown(prev => !prev)}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between disabled:opacity-50 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <span className={selectedColorCodes.length === 0 ? 'text-gray-400' : 'text-gray-800'}>
+                        {selectedColorCodes.length === 0 ? 'Renk Kodu Seçin' : selectedColorCodes.join(', ')}
+                      </span>
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {showColorDropdown && (
+                      <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {selectedColorCodes.length > 0 && (
+                          <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between sticky top-0">
+                            <span className="text-xs text-blue-700 font-medium">{selectedColorCodes.length} seçili</span>
+                            <button type="button" onClick={() => setSelectedColorCodes([])}
+                              className="text-xs text-blue-500 hover:text-blue-700">Temizle</button>
+                          </div>
+                        )}
+                        {colorCodes.map(item => (
+                          <label key={item.id} className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-blue-50 transition ${selectedColorCodes.includes(item.colorCode) ? 'bg-blue-50' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={selectedColorCodes.includes(item.colorCode)}
+                              onChange={() => {
+                                const isFirst = selectedColorCodes.length === 0;
+                                setSelectedColorCodes(prev =>
+                                  prev.includes(item.colorCode)
+                                    ? prev.filter(c => c !== item.colorCode)
+                                    : [...prev, item.colorCode]
+                                );
+                                if (isFirst) {
+                                  const product = colorCodes.find(p => p.colorCode === item.colorCode);
+                                  if (product?.price && product.price > 0) {
+                                    setAmount((product.price * (parseInt(quantity) || 1)).toFixed(2));
+                                  }
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                            />
+                            <span className="text-sm text-gray-800">{item.colorCode}</span>
+                            <span className="text-xs text-gray-400 ml-auto">Stok: {item.quantity}</span>
+                          </label>
+                        ))}
+                        {colorCodes.length === 0 && (
+                          <p className="text-sm text-gray-400 px-3 py-2">Renk kodu bulunamadı</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              {selectedProduct && (
+
+              {selectedColorCodes.length > 0 && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-4">
-                  <span className="text-sm font-medium text-blue-800">Seçili Ürün:</span>
-                  <span className="text-sm font-semibold text-blue-900">{selectedBrand} - {selectedModel} - {selectedColorCode}</span>
-                  <span className="text-sm text-blue-700">Mevcut Stok: <span className="font-bold text-red-600">{selectedProduct.quantity}</span></span>
+                  <span className="text-sm font-medium text-blue-800">Seçili:</span>
+                  <span className="text-sm font-semibold text-blue-900">{selectedBrand} - {selectedModel}</span>
+                  <span className="text-sm text-blue-700">
+                    {selectedColorCodes.join(', ')}
+                  </span>
                 </div>
               )}
             </>
@@ -722,7 +809,6 @@ export default function SalesEntry() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-
               <button
                 onClick={() => setShowCalendar(prev => !prev)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white border border-blue-600 rounded-lg transition text-sm font-medium min-w-[140px] justify-center">
@@ -737,7 +823,6 @@ export default function SalesEntry() {
                   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
                 })()}
               </button>
-
               <button
                 onClick={() => {
                   const today = new Date();
@@ -756,7 +841,6 @@ export default function SalesEntry() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </button>
-
               {(() => {
                 const today = new Date();
                 const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -767,7 +851,6 @@ export default function SalesEntry() {
                   </button>
                 ) : null;
               })()}
-
               {showCalendar && (
                 <CalendarPopup
                   selectedDate={selectedDate}
@@ -779,7 +862,6 @@ export default function SalesEntry() {
           </div>
         </div>
 
-        {/* Tablo */}
         {(() => {
           const filteredSales = sales.filter(sale => {
             const d = new Date(sale.created_at);
@@ -815,7 +897,6 @@ export default function SalesEntry() {
                   {(() => {
                     const groups = [];
                     const seen = new Set();
-
                     for (const sale of filteredSales) {
                       const key = sale.basket_id || `solo_${sale.id}`;
                       if (seen.has(key)) continue;
@@ -853,7 +934,6 @@ export default function SalesEntry() {
                           {items.map((sale, index) => {
                             const isEditing = editingId === sale.id;
                             const canEdit = !sale.stockDecreased;
-
                             return (
                               <tr key={sale.id} className={`border-t ${isGroup ? 'border-blue-100 bg-blue-50/20' : 'border-gray-100'} hover:bg-gray-50 transition`}>
                                 <td className="py-3 px-4 text-sm text-gray-600">{formatDate(sale.created_at)}</td>
@@ -862,18 +942,18 @@ export default function SalesEntry() {
                                     <div className="flex gap-1">
                                       <input type="text" value={editValues.brand}
                                         onChange={e => setEditValues(prev => ({ ...prev, brand: e.target.value }))}
-                                        className="w-24 px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500" placeholder="Marka" />
+                                        className="w-24 px-2 py-1 border border-blue-300 rounded text-sm" placeholder="Marka" />
                                       <input type="text" value={editValues.model}
                                         onChange={e => setEditValues(prev => ({ ...prev, model: e.target.value }))}
-                                        className="w-24 px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500" placeholder="Model" />
+                                        className="w-24 px-2 py-1 border border-blue-300 rounded text-sm" placeholder="Model" />
                                       <input type="text" value={editValues.colorCode}
                                         onChange={e => setEditValues(prev => ({ ...prev, colorCode: e.target.value }))}
-                                        className="w-20 px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500" placeholder="Renk Kodu" />
+                                        className="w-20 px-2 py-1 border border-blue-300 rounded text-sm" placeholder="Renk Kodu" />
                                     </div>
                                   ) : isEditing && sale.is_other_product ? (
                                     <input type="text" value={editValues.description}
                                       onChange={e => setEditValues(prev => ({ ...prev, description: e.target.value }))}
-                                      className="w-full px-2 py-1 border border-blue-300 rounded text-sm focus:ring-2 focus:ring-blue-500" placeholder="Açıklama" />
+                                      className="w-full px-2 py-1 border border-blue-300 rounded text-sm" placeholder="Açıklama" />
                                   ) : (
                                     <>
                                       {sale.is_other_product
@@ -885,32 +965,29 @@ export default function SalesEntry() {
                                     </>
                                   )}
                                 </td>
-
                                 <td className="py-3 px-4 text-sm text-center text-gray-800">
                                   {isEditing ? (
                                     <input type="number" min="1" value={editValues.quantity}
                                       onChange={e => setEditValues(prev => ({ ...prev, quantity: e.target.value }))}
-                                      className="w-16 px-2 py-1 border border-blue-300 rounded text-center focus:ring-2 focus:ring-blue-500 text-sm" />
+                                      className="w-16 px-2 py-1 border border-blue-300 rounded text-center text-sm" />
                                   ) : sale.quantity}
                                 </td>
-
                                 <td className="py-3 px-4 text-sm text-right font-semibold">
                                   {isEditing ? (
                                     <input type="number" step="0.01" min="0" value={editValues.amount}
                                       onChange={e => setEditValues(prev => ({ ...prev, amount: e.target.value }))}
-                                      className="w-24 px-2 py-1 border border-blue-300 rounded text-right focus:ring-2 focus:ring-blue-500 text-sm" />
+                                      className="w-24 px-2 py-1 border border-blue-300 rounded text-right text-sm" />
                                   ) : (
                                     <span className={sale.amount < 0 ? 'text-red-600' : 'text-gray-900'}>
                                       {sale.amount < 0 ? `-${formatCurrency(Math.abs(sale.amount))}` : formatCurrency(sale.amount)}
                                     </span>
                                   )}
                                 </td>
-
                                 <td className="py-3 px-4 text-center">
                                   {isEditing ? (
                                     <select value={editValues.paymentType}
                                       onChange={e => setEditValues(prev => ({ ...prev, paymentType: e.target.value }))}
-                                      className="px-2 py-1 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 text-sm">
+                                      className="px-2 py-1 border border-blue-300 rounded text-sm">
                                       <option value="Nakit">Nakit</option>
                                       <option value="Kredi Kartı">Kredi Kartı</option>
                                     </select>
@@ -921,22 +998,15 @@ export default function SalesEntry() {
                                     </span>
                                   )}
                                 </td>
-
                                 <td className="py-3 px-4 text-center">
                                   <div className="flex items-center justify-center gap-1">
                                     {isEditing ? (
                                       <>
-                                        <button onClick={() => handleEditSave(sale)}
-                                          className="p-1 text-green-600 hover:text-green-800 rounded transition" title="Kaydet">
-                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                          </svg>
+                                        <button onClick={() => handleEditSave(sale)} className="p-1 text-green-600 hover:text-green-800 rounded transition" title="Kaydet">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                         </button>
-                                        <button onClick={() => { setEditingId(null); setEditValues({}); }}
-                                          className="p-1 text-gray-400 hover:text-gray-600 rounded transition" title="İptal">
-                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                          </svg>
+                                        <button onClick={() => { setEditingId(null); setEditValues({}); }} className="p-1 text-gray-400 hover:text-gray-600 rounded transition" title="İptal">
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                         </button>
                                       </>
                                     ) : (
@@ -944,19 +1014,9 @@ export default function SalesEntry() {
                                         {canEdit && (
                                           <button onClick={() => {
                                             setEditingId(sale.id);
-                                            setEditValues({
-                                              quantity: sale.quantity,
-                                              amount: sale.amount,
-                                              paymentType: sale.paymentType,
-                                              brand: sale.brand,
-                                              model: sale.model,
-                                              colorCode: sale.colorCode,
-                                              description: sale.description,
-                                            });
+                                            setEditValues({ quantity: sale.quantity, amount: sale.amount, paymentType: sale.paymentType, brand: sale.brand, model: sale.model, colorCode: sale.colorCode, description: sale.description });
                                           }} className="p-1 text-blue-400 hover:text-blue-600 rounded transition" title="Düzenle">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                            </svg>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                           </button>
                                         )}
                                         {!sale.is_other_product && !sale.is_return ? (
@@ -995,7 +1055,6 @@ export default function SalesEntry() {
           );
         })()}
 
-        {/* Toplu stok düş butonu */}
         {(() => {
           const filteredSales = sales.filter(sale => {
             const d = new Date(sale.created_at);
