@@ -769,7 +769,13 @@ export default function SalesEntry() {
                   const val = e.target.value;
                   setQuantity(val);
                   const qty = parseInt(val) || 1;
-                  if (selectedProduct?.price && selectedProduct.price > 0) setAmount((selectedProduct.price * qty).toFixed(2));
+                  const firstColor = selectedColorCodes[0];
+                  if (firstColor) {
+                    const product = colorCodes.find(p => p.colorCode === firstColor);
+                    if (product?.price && product.price > 0) setAmount((product.price * qty).toFixed(2));
+                  } else if (selectedProduct?.price && selectedProduct.price > 0) {
+                    setAmount((selectedProduct.price * qty).toFixed(2));
+                  }
                 }}
                 className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="1" required />
             </div>
