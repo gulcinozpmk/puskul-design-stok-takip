@@ -6,7 +6,9 @@ import Reports from './components/Reports';
 import Login from './components/Login';
 import { supabase } from './services/supabaseClient';
 import StockView from './components/StockView';
+import CashRegister from './components/CashRegister';
 import './index.css';
+
 
 function App() {
   const [currentPage, setCurrentPage] = useState('sales');
@@ -51,6 +53,7 @@ function App() {
       case 'stockview': return <StockView />;
       case 'reports': return <Reports key={reportsKey} />;
       default: return <Dashboard />;
+      case 'cash': return <CashRegister />;
     }
   };
 
@@ -60,6 +63,7 @@ function App() {
     { id: 'stockview', label: 'Stok Görüntüle', icon: '🔍' },
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'reports', label: 'Raporlar', icon: '📈' },
+    { id: 'cash', label: 'Kasa', icon: '💰' },
   ];
 
   return (

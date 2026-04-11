@@ -342,3 +342,63 @@ export const getProductByBarcode = async (barcode) => {
     return null;
   }
 };
+
+// ============= CASHREGISTER =============
+
+export const getCashMovements = async (date) => {
+  try {
+    const { data, error } = await supabase
+      .from('cash_movements')
+      .select('*')
+      .eq('date', date)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('getCashMovements error:', error);
+    return [];
+  }
+};
+
+export const addCashMovement = async (movement) => {
+  try {
+    const { data, error } = await supabase
+      .from('cash_movements')
+      .insert([movement])
+      .select();
+    if (error) throw error;
+    return data[0];
+  } catch (error) {
+    console.error('addCashMovement error:', error);
+    throw error;
+  }
+};
+
+export const deleteCashMovement = async (id) => {
+  try {
+    const { error } = await supabase
+      .from('cash_movements')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  } catch (error) {
+    console.error('deleteCashMovement error:', error);
+    throw error;
+  }
+};
+
+export const getSalesByDate = async (date) => {
+  try {
+    const { data, error } = await supabase
+      .from('sales')
+      .select('*')
+      .gte('created_at', `${date}T00:00:00`)
+      .lte('created_at', `${date}T23:59:59`)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('getSalesByDate error:', error);
+    return [];
+  }
+};
