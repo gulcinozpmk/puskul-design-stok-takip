@@ -67,6 +67,8 @@ export default function SalesEntry() {
   });
   const [showSaleDateCalendar, setShowSaleDateCalendar] = useState(false);
 
+  const [colorQuantities, setColorQuantities] = useState({});
+
   // Dışına tıklayınca renk dropdown'ı kapat
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -89,12 +91,10 @@ export default function SalesEntry() {
   };
 
   const calculateTodaySales = (salesData) => {
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const todaySalesData = salesData.filter(sale => {
       const saleDate = new Date(sale.created_at);
       const saleDateStr = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
-      return saleDateStr === todayStr;
+      return saleDateStr === selectedDate;
     });
 
     const total = todaySalesData.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
@@ -145,6 +145,7 @@ export default function SalesEntry() {
         setSelectedProduct(null);
         setAmount('');
         setShowColorDropdown(false);
+        setColorQuantities({});
       } else {
         setColorCodes([]);
         setSelectedColorCodes([]);
@@ -167,6 +168,10 @@ export default function SalesEntry() {
       setSelectedProduct(null);
     }
   }, [selectedColorCode, colorCodes]);
+
+  useEffect(() => {
+    calculateTodaySales(sales);
+  }, [selectedDate, sales]);
 
   const handleQRScan = async (rawValue) => {
     setShowQRScanner(false);
@@ -211,6 +216,7 @@ export default function SalesEntry() {
     setSelectedColorCodes([]); setShowColorDropdown(false);
     setSelectedProduct(null); setQuantity(1); setAmount('');
     setNote(''); setIsOtherProduct(false); setOtherDescription(''); setQrStatus(null);
+    setColorQuantities({});
   };
 
   const handleAddToCart = (e) => {
@@ -225,19 +231,24 @@ export default function SalesEntry() {
     }
 
     if (!isOtherProduct && selectedColorCodes.length > 1) {
-      const items = selectedColorCodes.map(colorCode => ({
-        id: Date.now() + Math.random(),
-        quantity: parseInt(quantity) || 1,
-        amount: parseFloat(amount),
-        note,
-        is_other_product: false,
-        is_return: false,
-        description: null,
-        brand: selectedBrand,
-        model: selectedModel,
-        colorCode,
-        saleDate,
-      }));
+      const items = selectedColorCodes.map(colorCode => {
+        const qty = colorQuantities[colorCode] || parseInt(quantity) || 1;
+        const product = colorCodes.find(p => p.colorCode === colorCode);
+        const unitPrice = product?.price || parseFloat(amount);
+        return {
+          id: Date.now() + Math.random(),
+          quantity: qty,
+          amount: parseFloat((unitPrice * qty).toFixed(2)),
+          note,
+          is_other_product: false,
+          is_return: false,
+          description: null,
+          brand: selectedBrand,
+          model: selectedModel,
+          colorCode,
+          saleDate,
+        };
+      });
       setCart(prev => [...prev, ...items]);
     } else {
       const colorCode = isOtherProduct ? null : selectedColorCodes[0];
@@ -287,7 +298,13 @@ export default function SalesEntry() {
             cashAmount: parseFloat((cash * ratio).toFixed(2)),
             cardAmount: parseFloat((card * ratio).toFixed(2)),
             basket_id: basketId,
-            created_at: item.saleDate ? `${item.saleDate}T12:00:00` : undefined,
+            created_at: item.saleDate ? (() => {
+              const today = new Date();
+              const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+              return item.saleDate === todayStr
+                ? undefined  // bugünse Supabase kendi zamanını atsın
+                : `${item.saleDate}T12:00:00`;  // geçmiş tarihse öğlen saati yaz
+            })() : undefined,
             is_return: item.is_return || false,
           });
         } else {
@@ -297,7 +314,13 @@ export default function SalesEntry() {
             cashAmount: cartPaymentType === 'Nakit' ? item.amount : 0,
             cardAmount: cartPaymentType === 'Kredi Kartı' ? item.amount : 0,
             basket_id: basketId,
-            created_at: item.saleDate ? `${item.saleDate}T12:00:00` : undefined,
+            created_at: item.saleDate ? (() => {
+              const today = new Date();
+              const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+              return item.saleDate === todayStr
+                ? undefined
+                : `${item.saleDate}T12:00:00`;
+            })() : undefined,
             is_return: item.is_return || false,
           });
         }
@@ -435,7 +458,13 @@ export default function SalesEntry() {
           onClick={() => setShowTotals(prev => !prev)}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition text-sm"
         >
-          {showTotals ? '🙈 Bugünkü Toplamı Gizle' : '📊 Bugünkü Toplamı Göster'}
+          {showTotals ? '🙈 Toplamı Gizle' : (() => {
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            if (selectedDate === todayStr) return '📊 Bugünkü Toplamı Göster';
+            const d = new Date(selectedDate);
+            return `📊 ${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} Toplamını Göster`;
+          })()}
         </button>
       </div>
 
@@ -444,7 +473,15 @@ export default function SalesEntry() {
       {showTotals && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
-            <p className="text-sm opacity-90">Bugünkü Toplam</p>
+            <p className="text-sm opacity-90">
+              {(() => {
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                if (selectedDate === todayStr) return 'Bugünkü Toplam';
+                const d = new Date(selectedDate);
+                return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} Toplamı`;
+              })()}
+            </p>
             <p className="text-3xl font-bold mt-2">{formatCurrency(todaySales.total)}</p>
           </div>
           <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
@@ -667,7 +704,7 @@ export default function SalesEntry() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Marka *</label>
                   <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)}
-                    className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
                     <option value="">Marka Seçin</option>
                     {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
                   </select>
@@ -675,7 +712,7 @@ export default function SalesEntry() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Model *</label>
                   <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedBrand} required>
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" disabled={!selectedBrand} required>
                     <option value="">Model Seçin</option>
                     {models.map(model => <option key={model} value={model}>{model}</option>)}
                   </select>
@@ -684,7 +721,7 @@ export default function SalesEntry() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Renk Kodu * <span className="text-xs text-gray-400">(birden fazla seçebilirsiniz)</span>
                   </label>
-                  <div className="relative color-dropdown-container max-w-xs">
+                  <div className="relative color-dropdown-container w-full">
                     <button
                       type="button"
                       disabled={!selectedModel}
@@ -700,7 +737,7 @@ export default function SalesEntry() {
                     </button>
 
                     {showColorDropdown && (
-                      <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-[540px] overflow-y-auto">
                         {selectedColorCodes.length > 0 && (
                           <div className="px-3 py-1.5 bg-blue-50 border-b border-blue-100 flex items-center justify-between sticky top-0">
                             <span className="text-xs text-blue-700 font-medium">{selectedColorCodes.length} seçili</span>
@@ -743,12 +780,30 @@ export default function SalesEntry() {
               </div>
 
               {selectedColorCodes.length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-4">
-                  <span className="text-sm font-medium text-blue-800">Seçili:</span>
-                  <span className="text-sm font-semibold text-blue-900">{selectedBrand} - {selectedModel}</span>
-                  <span className="text-sm text-blue-700">
-                    {selectedColorCodes.join(', ')}
-                  </span>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 space-y-2">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-blue-800">Seçili:</span>
+                    <span className="text-sm font-semibold text-blue-900">{selectedBrand} - {selectedModel}</span>
+                  </div>
+                  {selectedColorCodes.length === 1 ? (
+                    <span className="text-sm text-blue-700">{selectedColorCodes[0]} · Stok: {colorCodes.find(c => c.colorCode === selectedColorCodes[0])?.quantity ?? '-'}</span>
+                  ) : (
+                    <div className="space-y-1">
+                      {selectedColorCodes.map(code => (
+                        <div key={code} className="flex items-center gap-3">
+                          <span className="text-sm text-blue-800 w-24">{code}</span>
+                          <span className="text-xs text-gray-400">Stok: {colorCodes.find(c => c.colorCode === code)?.quantity ?? '-'}</span>
+                          <label className="text-xs text-blue-700">Adet:</label>
+                          <input
+                            type="number" min="1"
+                            value={colorQuantities[code] || 1}
+                            onChange={e => setColorQuantities(prev => ({ ...prev, [code]: parseInt(e.target.value) || 1 }))}
+                            className="w-16 px-2 py-0.5 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -769,6 +824,13 @@ export default function SalesEntry() {
                   const val = e.target.value;
                   setQuantity(val);
                   const qty = parseInt(val) || 1;
+                  // Tüm seçili renklerin adetini güncelle
+                  if (selectedColorCodes.length > 1) {
+                    const updated = {};
+                    selectedColorCodes.forEach(code => { updated[code] = qty; });
+                    setColorQuantities(updated);
+                  }
+                  // Fiyatı güncelle
                   const firstColor = selectedColorCodes[0];
                   if (firstColor) {
                     const product = colorCodes.find(p => p.colorCode === firstColor);
@@ -903,17 +965,20 @@ export default function SalesEntry() {
                   {(() => {
                     const groups = [];
                     const seen = new Set();
+
                     for (const sale of filteredSales) {
                       const key = sale.basket_id || `solo_${sale.id}`;
                       if (seen.has(key)) continue;
                       seen.add(key);
                       if (sale.basket_id) {
                         const group = filteredSales.filter(s => s.basket_id === sale.basket_id);
-                        groups.push({ key, items: group, isGroup: true });
+                        groups.push({ key, items: group, isGroup: true, created_at: group[0].created_at });
                       } else {
-                        groups.push({ key, items: [sale], isGroup: false });
+                        groups.push({ key, items: [sale], isGroup: false, created_at: sale.created_at });
                       }
                     }
+
+                    groups.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
                     return groups.map(({ key, items, isGroup }) => {
                       const groupTotal = items.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
