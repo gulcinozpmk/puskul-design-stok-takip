@@ -57,9 +57,15 @@ export default function CashRegister() {
                 const d = new Date(s.created_at);
                 const yearMatch = d.getFullYear() === selectedYear;
                 const monthMatch = selectedMonth === 0 || (d.getMonth() + 1) === selectedMonth;
-                return yearMatch && monthMatch;
+                const cashMatch = s.paymentType === 'Nakit' || s.paymentType === 'Karma';
+                return yearMatch && monthMatch && cashMatch;
             });
-            const total = filteredSales.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+
+            const total = filteredSales.reduce((sum, s) => {
+                if (s.paymentType === 'Nakit') return sum + parseFloat(s.amount || 0);
+                if (s.paymentType === 'Karma') return sum + parseFloat(s.cashamount || 0);
+                return sum;
+            }, 0);
             setSalesTotal(total);
 
             const startDate = selectedMonth === 0
@@ -298,7 +304,7 @@ export default function CashRegister() {
             {/* Özet Kartlar */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-5 text-white">
-                    <p className="text-sm opacity-90">Toplam Satış</p>
+                    <p className="text-sm opacity-90">Toplam Nakit Satış</p>
                     <p className="text-2xl font-bold mt-1">{formatCurrency(salesTotal)}</p>
                 </div>
                 <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-5 text-white">
