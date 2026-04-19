@@ -27,8 +27,10 @@ export default function CashRegister() {
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-    const [salesTotal, setSalesTotal] = useState(0);
+    const [salesTotal, setSalesTotal] = useState(0);      // seçili dönem satış
+    const [carryOver, setCarryOver] = useState(0);        // önceki aylardan devir
     const [movements, setMovements] = useState([]);
+    const [allMovements, setAllMovementsState] = useState([]); // tüm hareketler (devir için)
 
     const [expenseDesc, setExpenseDesc] = useState('');
     const [expenseAmount, setExpenseAmount] = useState('');
@@ -43,7 +45,6 @@ export default function CashRegister() {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
-    // Edit state
     const [editingId, setEditingId] = useState(null);
     const [editValues, setEditValues] = useState({});
 
@@ -53,16 +54,18 @@ export default function CashRegister() {
         setIsLoading(true);
         try {
             const allSales = await getSales();
+
+            // Seçili dönem satışları
             const filteredSales = allSales.filter(s => {
                 const d = new Date(s.created_at);
                 const yearMatch = d.getFullYear() === selectedYear;
                 const monthMatch = selectedMonth === 0 || (d.getMonth() + 1) === selectedMonth;
                 return yearMatch && monthMatch;
             });
-
             const total = filteredSales.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
             setSalesTotal(total);
 
+            // Seçili dönem hareketleri
             const startDate = selectedMonth === 0
                 ? `${selectedYear}-01-01`
                 : `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
@@ -75,16 +78,49 @@ export default function CashRegister() {
             );
             setMovements(movementsRes);
 
-            const allMovements = await fetchFromSupabase(
+            // Devir hesabı — sadece tek ay seçilince
+            if (selectedMonth !== 0) {
+                // O aydan önceki tüm satışlar
+                const prevSales = allSales.filter(s => {
+                    const d = new Date(s.created_at);
+                    const yr = d.getFullYear();
+                    const mo = d.getMonth() + 1;
+                    return yr < selectedYear || (yr === selectedYear && mo < selectedMonth);
+                });
+                const prevSalesTotal = prevSales.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+
+                // O aydan önceki tüm hareketler
+                const prevMovements = await fetchFromSupabase(
+                    `cash_movements?date=lt.${startDate}&order=created_at.desc`
+                );
+                const prevExpense = prevMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + parseFloat(m.amount || 0), 0);
+                const prevEmployee = prevMovements.filter(m => m.type === 'employee').reduce((sum, m) => sum + parseFloat(m.amount || 0), 0);
+
+                setCarryOver(prevSalesTotal - prevExpense - prevEmployee);
+            } else {
+                setCarryOver(0);
+            }
+
+            // Çalışan listesi
+            const empMovements = await fetchFromSupabase(
                 `cash_movements?type=eq.employee&select=employee_name`
             );
-            const uniqueEmployees = [...new Set(allMovements.map(m => m.employee_name).filter(Boolean))];
+            const uniqueEmployees = [...new Set(empMovements.map(m => m.employee_name).filter(Boolean))];
             setEmployees(uniqueEmployees);
         } catch (err) {
             console.error(err);
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const getEntryDate = () => {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        if (selectedMonth === 0) return todayStr;
+        if (selectedYear === currentYear && selectedMonth === currentMonth) return todayStr;
+        return new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
     };
 
     const handleAddExpense = async (e) => {
@@ -98,19 +134,7 @@ export default function CashRegister() {
                     description: expenseDesc,
                     amount: parseFloat(expenseAmount),
                     employee_name: null,
-                    date: (() => {
-                        const now = new Date();
-                        const currentYear = now.getFullYear();
-                        const currentMonth = now.getMonth() + 1;
-                        if (selectedYear === currentYear && selectedMonth === currentMonth) {
-                            return todayStr; // bu ay ise bugün
-                        } else if (selectedMonth === 0) {
-                            return todayStr; // tüm yıl seçiliyse bugün
-                        } else {
-                            // geçmiş ay ise o ayın son günü
-                            return new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
-                        }
-                    })(),
+                    date: getEntryDate(),
                 }),
             });
             setExpenseDesc(''); setExpenseAmount('');
@@ -130,19 +154,7 @@ export default function CashRegister() {
                     description: null,
                     amount: parseFloat(employeeAmount),
                     employee_name: empName,
-                    date: (() => {
-                        const now = new Date();
-                        const currentYear = now.getFullYear();
-                        const currentMonth = now.getMonth() + 1;
-                        if (selectedYear === currentYear && selectedMonth === currentMonth) {
-                            return todayStr; // bu ay ise bugün
-                        } else if (selectedMonth === 0) {
-                            return todayStr; // tüm yıl seçiliyse bugün
-                        } else {
-                            // geçmiş ay ise o ayın son günü
-                            return new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
-                        }
-                    })(),
+                    date: getEntryDate(),
                 }),
             });
             setSelectedEmployee(''); setNewEmployeeName(''); setEmployeeAmount(''); setShowAddEmployee(false);
@@ -164,7 +176,9 @@ export default function CashRegister() {
                 method: 'PATCH',
                 body: JSON.stringify({
                     description: editValues.description ?? m.description,
-                    amount: parseFloat(editValues.amount) || m.amount,
+                    amount: editValues.amount !== '' && editValues.amount !== undefined
+                        ? parseFloat(editValues.amount)
+                        : m.amount,
                     employee_name: editValues.employee_name ?? m.employee_name,
                 }),
             });
@@ -176,14 +190,14 @@ export default function CashRegister() {
 
     const expenseTotal = movements.filter(m => m.type === 'expense').reduce((sum, m) => sum + parseFloat(m.amount || 0), 0);
     const employeeTotal = movements.filter(m => m.type === 'employee').reduce((sum, m) => sum + parseFloat(m.amount || 0), 0);
-    const netCash = salesTotal - expenseTotal - employeeTotal;
+    const periodNet = salesTotal - expenseTotal - employeeTotal; // bu dönemin net'i
+    const totalCash = selectedMonth !== 0 ? carryOver + periodNet : periodNet; // devir + bu dönem
 
     const employeeBreakdown = {};
     movements.filter(m => m.type === 'employee').forEach(m => {
         employeeBreakdown[m.employee_name] = (employeeBreakdown[m.employee_name] || 0) + parseFloat(m.amount || 0);
     });
 
-    // Tüm yıl seçilince ay ay grupla
     const groupedMovements = () => {
         if (selectedMonth !== 0) return null;
         const groups = {};
@@ -205,11 +219,13 @@ export default function CashRegister() {
                 <td className="py-3 px-4 text-sm">
                     {m.type === 'expense'
                         ? <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">💸 Masraf</span>
-                        : <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">👤 {isEditing ? (
-                            <input value={editValues.employee_name ?? m.employee_name}
-                                onChange={e => setEditValues(prev => ({ ...prev, employee_name: e.target.value }))}
-                                className="w-20 px-1 border border-purple-300 rounded text-xs" />
-                        ) : m.employee_name}</span>}
+                        : <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                            👤 {isEditing
+                                ? <input value={editValues.employee_name ?? m.employee_name}
+                                    onChange={e => setEditValues(prev => ({ ...prev, employee_name: e.target.value }))}
+                                    className="w-20 px-1 border border-purple-300 rounded text-xs" />
+                                : m.employee_name}
+                        </span>}
                 </td>
                 <td className="py-3 px-4 text-sm text-gray-800">
                     {isEditing ? (
@@ -225,28 +241,26 @@ export default function CashRegister() {
                         <input type="number" step="0.01" value={editValues.amount ?? m.amount}
                             onChange={e => setEditValues(prev => ({ ...prev, amount: e.target.value }))}
                             className="w-24 px-2 py-0.5 border border-blue-300 rounded text-right text-sm" />
-                    ) : (
-                        `-${formatCurrency(m.amount)}`
-                    )}
+                    ) : `-${formatCurrency(m.amount)}`}
                 </td>
                 <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center gap-1">
                         {isEditing ? (
                             <>
-                                <button onClick={() => handleEditSave(m)} className="p-1 text-green-600 hover:text-green-800 rounded transition" title="Kaydet">
+                                <button onClick={() => handleEditSave(m)} className="p-1 text-green-600 hover:text-green-800 rounded transition">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                 </button>
-                                <button onClick={() => { setEditingId(null); setEditValues({}); }} className="p-1 text-gray-400 hover:text-gray-600 rounded transition" title="İptal">
+                                <button onClick={() => { setEditingId(null); setEditValues({}); }} className="p-1 text-gray-400 hover:text-gray-600 rounded transition">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </>
                         ) : (
                             <>
                                 <button onClick={() => { setEditingId(m.id); setEditValues({ description: m.description, amount: m.amount, employee_name: m.employee_name }); }}
-                                    className="p-1 text-blue-400 hover:text-blue-600 rounded transition" title="Düzenle">
+                                    className="p-1 text-blue-400 hover:text-blue-600 rounded transition">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                 </button>
-                                <button onClick={() => handleDelete(m.id)} className="p-1 text-red-600 hover:text-red-800 rounded transition" title="Sil">
+                                <button onClick={() => handleDelete(m.id)} className="p-1 text-red-600 hover:text-red-800 rounded transition">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
                             </>
@@ -273,9 +287,7 @@ export default function CashRegister() {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold text-gray-800">Kasa</h1>
-            </div>
+            <h1 className="text-3xl font-bold text-gray-800">Kasa</h1>
 
             {/* Yıl/Ay Filtresi */}
             <div className="bg-white rounded-lg shadow-md p-4 flex items-center gap-4">
@@ -299,13 +311,22 @@ export default function CashRegister() {
             {/* Özet Kartlar */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-5 text-white">
-                    <p className="text-sm opacity-90">Toplam Satış</p>
+                    <p className="text-sm opacity-90">Dönem Satışı</p>
                     <p className="text-2xl font-bold mt-1">{formatCurrency(salesTotal)}</p>
                 </div>
                 <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-5 text-white">
-                    <p className="text-sm opacity-90">Net Kasa</p>
-                    <p className="text-2xl font-bold mt-1">{formatCurrency(netCash)}</p>
-                    <p className="text-xs opacity-75 mt-1">Satış - Masraf - Personel</p>
+                    <p className="text-sm opacity-90">Toplam Kasa</p>
+                    <p className="text-2xl font-bold mt-1">{formatCurrency(totalCash)}</p>
+                    {selectedMonth !== 0 && carryOver !== 0 && (
+                        <p className="text-xs opacity-75 mt-1">
+                            Önceki Aydan Devir: {formatCurrency(carryOver)}<br />
+                            Bu Ayki Kasa: {formatCurrency(periodNet)}<br />
+                            Toplam: {formatCurrency(totalCash)}
+                        </p>
+                    )}
+                    {selectedMonth === 0 && (
+                        <p className="text-xs opacity-75 mt-1">Satış - Masraf - Personel</p>
+                    )}
                 </div>
                 <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-lg p-5 text-white">
                     <p className="text-sm opacity-90">Masraflar</p>
@@ -396,7 +417,6 @@ export default function CashRegister() {
                         <p className="text-sm font-medium">Kayıt yok</p>
                     </div>
                 ) : selectedMonth !== 0 ? (
-                    // Tek ay — normal tablo
                     <div className="bg-white rounded-lg shadow-md overflow-hidden">
                         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
                             <h2 className="text-lg font-semibold text-gray-800">Kasa Hareketleri — {MONTHS[selectedMonth - 1]} {selectedYear}</h2>
@@ -409,7 +429,6 @@ export default function CashRegister() {
                         </div>
                     </div>
                 ) : (
-                    // Tüm yıl — ay ay grupla
                     Object.keys(groups).sort((a, b) => b - a).map(monthNum => {
                         const monthMovements = groups[monthNum];
                         const monthExpense = monthMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + parseFloat(m.amount || 0), 0);

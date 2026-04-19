@@ -139,15 +139,27 @@ export const decreaseStock = async (brand, model, colorCode, quantity) => {
 
 export const getSales = async () => {
   try {
-    const { data, error } = await supabase
-      .from('sales')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let allData = [];
+    let from = 0;
+    const pageSize = 1000;
 
-    if (error) throw error;
+    while (true) {
+      const { data, error } = await supabase
+        .from('sales')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + pageSize - 1);
 
-    // created_at'i date formatına çevir
-    return (data || []).map(sale => ({
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      allData = [...allData, ...data];
+
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return allData.map(sale => ({
       ...sale,
       date: sale.created_at,
     }));
@@ -392,8 +404,8 @@ export const getSalesByDate = async (date) => {
     const { data, error } = await supabase
       .from('sales')
       .select('*')
-      .gte('created_at', `${date}T00:00:00`)
-      .lte('created_at', `${date}T23:59:59`)
+      .gte('created_at', `${date}T00:00:00+03:00`)
+      .lte('created_at', `${date}T23:59:59+03:00`)
       .order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];

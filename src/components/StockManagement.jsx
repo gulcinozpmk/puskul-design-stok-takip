@@ -149,7 +149,22 @@ export default function StockManagement() {
       const stockItem = stockData.find(
         s => s.brand === selectedBrand && s.model === selectedModel && s.colorCode === selectedColorCode
       );
-      if (!stockItem) { alert('Ürün bulunamadı!'); return; }
+      if (!stockItem) {
+        // Yeni renk olarak ekle
+        if (!confirm(`"${selectedBrand} - ${selectedModel} - ${selectedColorCode}" stokta yok. Yeni renk olarak eklensin mi?`)) return;
+        await addStock({
+          brand: selectedBrand,
+          model: selectedModel,
+          colorCode: selectedColorCode,
+          quantity: qty,
+          price: 0,
+        });
+        await loadData();
+        setSelectedBrand(''); setSelectedModel(''); setSelectedColorCode('');
+        setQuantityChange(''); setOperation('add');
+        alert('Yeni renk başarıyla eklendi!');
+        return;
+      }
 
       let newQuantity = operation === 'add'
         ? stockItem.quantity + qty
@@ -332,14 +347,23 @@ export default function StockManagement() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Renk Kodu *</label>
-                <select value={selectedColorCode} onChange={(e) => setSelectedColorCode(e.target.value)}
+                <input
+                  type="text"
+                  value={selectedColorCode}
+                  onChange={(e) => setSelectedColorCode(e.target.value)}
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  disabled={!selectedModel} required>
-                  <option value="">Renk Kodu Seçin</option>
+                  placeholder="Renk kodu girin veya seçin"
+                  list="colorCodeList"
+                  disabled={!selectedModel}
+                  required
+                />
+                <datalist id="colorCodeList">
                   {colorCodes.map(item => (
-                    <option key={item.id} value={item.colorCode}>{item.colorCode} (Stok: {item.quantity})</option>
+                    <option key={item.id} value={item.colorCode}>
+                      {item.colorCode} (Stok: {item.quantity})
+                    </option>
                   ))}
-                </select>
+                </datalist>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

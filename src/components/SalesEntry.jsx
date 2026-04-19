@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   addSale,
   getSales,
+  getSalesByDate,
   getBrands,
   getModelsByBrand,
   getColorCodesByBrandModel,
@@ -80,10 +81,10 @@ export default function SalesEntry() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [selectedDate]);
 
   const loadData = async () => {
-    const freshSales = await getSales();
+    const freshSales = await getSalesByDate(selectedDate);
     const freshBrands = await getBrands();
     setSales([...freshSales]);
     setBrands([...freshBrands]);
@@ -91,26 +92,17 @@ export default function SalesEntry() {
   };
 
   const calculateTodaySales = (salesData) => {
-    const todaySalesData = salesData.filter(sale => {
-      const saleDate = new Date(sale.created_at);
-      const saleDateStr = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}-${String(saleDate.getDate()).padStart(2, '0')}`;
-      return saleDateStr === selectedDate;
-    });
-
-    const total = todaySalesData.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
-
-    const cash = todaySalesData.reduce((sum, s) => {
+    const total = salesData.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+    const cash = salesData.reduce((sum, s) => {
       if (s.paymentType === 'Nakit') return sum + parseFloat(s.amount || 0);
-      if (s.paymentType === 'Karma') return sum + parseFloat(s.cashamount || s.cashAmount || 0);
+      if (s.paymentType === 'Karma') return sum + parseFloat(s.cashamount || 0);
       return sum;
     }, 0);
-
-    const card = todaySalesData.reduce((sum, s) => {
+    const card = salesData.reduce((sum, s) => {
       if (s.paymentType === 'Kredi Kartı') return sum + parseFloat(s.amount || 0);
-      if (s.paymentType === 'Karma') return sum + parseFloat(s.cardamount || s.cardAmount || 0);
+      if (s.paymentType === 'Karma') return sum + parseFloat(s.cardamount || 0);
       return sum;
     }, 0);
-
     setTodaySales({ total, cash, card });
   };
 
@@ -412,7 +404,9 @@ export default function SalesEntry() {
 
   const handleEditSave = async (sale) => {
     try {
-      const newAmount = parseFloat(editValues.amount) || sale.amount;
+      const newAmount = editValues.amount !== '' && editValues.amount !== undefined
+        ? parseFloat(editValues.amount)
+        : sale.amount;
       const newPaymentType = editValues.paymentType || sale.paymentType;
       const newBrand = editValues.brand ?? sale.brand;
       const newModel = editValues.model ?? sale.model;
