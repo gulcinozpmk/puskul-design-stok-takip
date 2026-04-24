@@ -48,6 +48,8 @@ export default function CashRegister() {
     const [editingId, setEditingId] = useState(null);
     const [editValues, setEditValues] = useState({});
 
+    const [cardTotal, setCardTotal] = useState(0);
+
     useEffect(() => { loadData(); }, [selectedYear, selectedMonth]);
 
     const loadData = async () => {
@@ -64,6 +66,18 @@ export default function CashRegister() {
             });
             const total = filteredSales.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
             setSalesTotal(total);
+            const cashSalesTotal = filteredSales.reduce((sum, s) => {
+                if (s.paymentType === 'Nakit') return sum + parseFloat(s.amount || 0);
+                if (s.paymentType === 'Karma') return sum + parseFloat(s.cashamount || 0);
+                return sum;
+            }, 0);
+            const cardSalesTotal = filteredSales.reduce((sum, s) => {
+                if (s.paymentType === 'Kredi Kartı') return sum + parseFloat(s.amount || 0);
+                if (s.paymentType === 'Karma') return sum + parseFloat(s.cardamount || 0);
+                return sum;
+            }, 0);
+            setSalesTotal(cashSalesTotal); // artık sadece nakit
+            setCardTotal(cardSalesTotal);
 
             // Seçili dönem hareketleri
             const startDate = selectedMonth === 0
@@ -87,7 +101,11 @@ export default function CashRegister() {
                     const mo = d.getMonth() + 1;
                     return yr < selectedYear || (yr === selectedYear && mo < selectedMonth);
                 });
-                const prevSalesTotal = prevSales.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+                const prevSalesTotal = prevSales.reduce((sum, s) => {
+                    if (s.paymentType === 'Nakit') return sum + parseFloat(s.amount || 0);
+                    if (s.paymentType === 'Karma') return sum + parseFloat(s.cashamount || 0);
+                    return sum;
+                }, 0);
 
                 // O aydan önceki tüm hareketler
                 const prevMovements = await fetchFromSupabase(
@@ -311,8 +329,9 @@ export default function CashRegister() {
             {/* Özet Kartlar */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-5 text-white">
-                    <p className="text-sm opacity-90">Dönem Satışı</p>
+                    <p className="text-sm opacity-90">Toplam Nakit Satışı</p>
                     <p className="text-2xl font-bold mt-1">{formatCurrency(salesTotal)}</p>
+                    <p className="text-xs opacity-75 mt-1">(Kredi Kartı: {formatCurrency(cardTotal)})</p>
                 </div>
                 <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-5 text-white">
                     <p className="text-sm opacity-90">Toplam Kasa</p>

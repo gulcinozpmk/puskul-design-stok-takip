@@ -50,7 +50,7 @@ function App() {
       case 'dashboard': return <Dashboard />;
       case 'sales': return <SalesEntry />;
       case 'stock': return <StockManagement />;
-      case 'stockview': return <StockView />;
+      // case 'stockview': return <StockView />;
       case 'reports': return <Reports key={reportsKey} />;
       default: return <Dashboard />;
       case 'cash': return <CashRegister />;
@@ -60,7 +60,7 @@ function App() {
   const navItems = [
     { id: 'sales', label: 'Satış Girişi', icon: '💰' },
     { id: 'stock', label: 'Stok Yönetimi', icon: '📦' },
-    { id: 'stockview', label: 'Stok Görüntüle', icon: '🔍' },
+    // { id: 'stockview', label: 'Stok Görüntüle', icon: '🔍' },
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'reports', label: 'Raporlar', icon: '📈' },
     { id: 'cash', label: 'Kasa', icon: '💰' },

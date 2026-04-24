@@ -48,6 +48,8 @@ export default function StockManagement() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [barcodeScanTarget, setBarcodeScanTarget] = useState(null); // 'new' veya item.id
 
+  const [editingQuantity, setEditingQuantity] = useState(null); // { id, value }
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
@@ -286,6 +288,19 @@ export default function StockManagement() {
       XLSX.utils.book_append_sheet(wb, ws, 'Stok');
       XLSX.writeFile(wb, `stok-listesi-${new Date().toLocaleDateString('tr-TR').replace(/\./g, '-')}.xlsx`);
     });
+  };
+
+  //Miktar Güncelleme
+  const handleQuantitySave = async (item) => {
+    const newQty = parseInt(editingQuantity.value);
+    if (isNaN(newQty) || newQty < 0) { alert('Geçerli bir miktar girin!'); return; }
+    try {
+      await updateStock(item.id, { quantity: newQty });
+      await loadData();
+      setEditingQuantity(null);
+    } catch (error) {
+      alert('Hata: ' + error.message);
+    }
   };
 
   return (
@@ -576,7 +591,12 @@ export default function StockManagement() {
           </div>
         </div>
         <div className="mt-4 flex justify-between items-center text-sm text-gray-600">
-          <span>{sortedStock.length} ürün listeleniyor</span>
+          <span>
+            {sortedStock.length} ürün listeleniyor
+            <span className="text-gray-400 ml-1">
+              (Toplam: {sortedStock.reduce((sum, item) => sum + item.quantity, 0)} adet)
+            </span>
+          </span>
           <div className="flex items-center gap-4">
             <span className="font-semibold">Toplam Değer: {formatCurrency(totalValue)}</span>
             <button
@@ -646,9 +666,34 @@ export default function StockManagement() {
                       )}
                     </td>
                     <td className="py-3 px-4 text-sm text-right">
-                      <span className={`inline-flex px-2 py-1 rounded ${item.quantity < 10 ? 'bg-red-100 text-red-800' : item.quantity < 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                        {item.quantity}
-                      </span>
+                      {editingQuantity?.id === item.id ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <input
+                            type="number" min="0"
+                            value={editingQuantity.value}
+                            onChange={e => setEditingQuantity({ ...editingQuantity, value: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleQuantitySave(item);
+                              if (e.key === 'Escape') setEditingQuantity(null);
+                            }}
+                            className="w-16 px-2 py-1 text-center border border-blue-400 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                          />
+                          <button onClick={() => handleQuantitySave(item)} className="text-green-600 hover:text-green-800 font-bold">✓</button>
+                          <button onClick={() => setEditingQuantity(null)} className="text-red-400 hover:text-red-600 font-bold">✕</button>
+                        </div>
+                      ) : (
+                        <span
+                          onClick={() => setEditingQuantity({ id: item.id, value: item.quantity })}
+                          className={`inline-flex px-2 py-1 rounded cursor-pointer hover:ring-2 hover:ring-blue-400 transition ${item.quantity < 10 ? 'bg-red-100 text-red-800' :
+                            item.quantity < 50 ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}
+                          title="Düzenlemek için tıkla"
+                        >
+                          {item.quantity}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-sm text-right text-gray-800">{formatCurrency(item.price)}</td>
                     <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
