@@ -380,8 +380,10 @@ export default function SalesEntry() {
     if (pending.length === 0) { alert('Stoktan düşülecek ürün yok!'); return; }
     if (!confirm(`${pending.length} ürün için stok işlemi yapılacak. Onaylıyor musunuz?`)) return;
 
-    try {
-      for (const sale of pending) {
+    const errors = [];
+
+    for (const sale of pending) {
+      try {
         if (sale.is_return) {
           const allStock = await getStock();
           const existing = allStock.find(p =>
@@ -394,11 +396,17 @@ export default function SalesEntry() {
           await decreaseStock(sale.brand, sale.model, sale.colorCode, sale.quantity);
         }
         await updateSale(sale.id, { stockDecreased: true });
+      } catch (error) {
+        errors.push(`• ${sale.brand} - ${sale.model} - ${sale.colorCode}: ${error.message}`);
       }
-      await loadData();
+    }
+
+    await loadData();
+
+    if (errors.length > 0) {
+      alert(`Bazı ürünler stoktan düşülemedi:\n\n${errors.join('\n')}`);
+    } else {
       alert(`${pending.length} ürün için stok başarıyla güncellendi!`);
-    } catch (error) {
-      alert('Hata: ' + error.message);
     }
   };
 
