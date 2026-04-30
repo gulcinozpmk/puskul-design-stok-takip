@@ -85,7 +85,7 @@ export default function CashRegister() {
                 : `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
             const endDate = selectedMonth === 0
                 ? `${selectedYear}-12-31`
-                : new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
+                : `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${new Date(selectedYear, selectedMonth, 0).getDate()}`;
 
             const movementsRes = await fetchFromSupabase(
                 `cash_movements?date=gte.${startDate}&date=lte.${endDate}&order=created_at.desc`
@@ -236,7 +236,9 @@ export default function CashRegister() {
                 </td>
                 <td className="py-3 px-4 text-sm">
                     {m.type === 'expense'
-                        ? <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">💸 Masraf</span>
+                        ? m.amount < 0
+                            ? <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">➕ Gelir</span>
+                            : <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">💸 Masraf</span>
                         : <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
                             👤 {isEditing
                                 ? <input value={editValues.employee_name ?? m.employee_name}
@@ -259,7 +261,9 @@ export default function CashRegister() {
                         <input type="number" step="0.01" value={editValues.amount ?? m.amount}
                             onChange={e => setEditValues(prev => ({ ...prev, amount: e.target.value }))}
                             className="w-24 px-2 py-0.5 border border-blue-300 rounded text-right text-sm" />
-                    ) : `-${formatCurrency(m.amount)}`}
+                    ) : m.amount < 0
+                        ? <span className="text-green-600">+{formatCurrency(Math.abs(m.amount))}</span>
+                        : `-${formatCurrency(m.amount)}`}
                 </td>
                 <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center gap-1">
@@ -350,6 +354,11 @@ export default function CashRegister() {
                 <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-lg p-5 text-white">
                     <p className="text-sm opacity-90">Masraflar</p>
                     <p className="text-2xl font-bold mt-1">{formatCurrency(expenseTotal)}</p>
+                    {movements.some(m => m.type === 'expense' && m.amount < 0) && (
+                        <p className="text-xs opacity-75 mt-1">
+                            Gelir: +{formatCurrency(Math.abs(movements.filter(m => m.type === 'expense' && m.amount < 0).reduce((sum, m) => sum + parseFloat(m.amount || 0), 0)))}
+                        </p>
+                    )}
                 </div>
                 <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-5 text-white">
                     <p className="text-sm opacity-90">Personel Ödemeleri</p>
@@ -373,7 +382,7 @@ export default function CashRegister() {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Tutar (₺) *</label>
-                            <input type="number" step="0.01" min="0" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)}
+                            <input type="number" step="0.01" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)}
                                 className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 placeholder="0.00" required />
                         </div>
