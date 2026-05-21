@@ -515,23 +515,21 @@ export default function SalesEntry() {
                           ? `🔄 ${item.brand} - ${item.model} - ${item.colorCode} (İADE)`
                           : `${item.brand} - ${item.model} - ${item.colorCode}`}
                     </span>
-                    {!item.is_other_product && (
-                      <label className="flex items-center gap-1 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={item.is_return || false}
-                          onChange={() => {
-                            setCart(prev => prev.map(i => i.id === item.id ? {
-                              ...i,
-                              is_return: !i.is_return,
-                              amount: !i.is_return ? -Math.abs(i.amount) : Math.abs(i.amount)
-                            } : i));
-                          }}
-                          className="w-4 h-4 text-red-500 border-gray-300 rounded"
-                        />
-                        <span className="text-xs text-red-500 font-medium">İade</span>
-                      </label>
-                    )}
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={item.is_return || false}
+                        onChange={() => {
+                          setCart(prev => prev.map(i => i.id === item.id ? {
+                            ...i,
+                            is_return: !i.is_return,
+                            amount: !i.is_return ? -Math.abs(i.amount) : Math.abs(i.amount)
+                          } : i));
+                        }}
+                        className="w-4 h-4 text-red-500 border-gray-300 rounded"
+                      />
+                      <span className="text-xs text-red-500 font-medium">İade</span>
+                    </label>
                   </div>
                   {item.note && <p className="text-xs text-gray-500">{item.note}</p>}
                 </div>

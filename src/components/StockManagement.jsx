@@ -417,7 +417,7 @@ export default function StockManagement() {
                     </td>
                     <td className="py-3 px-4 text-sm text-right">
                       {editingQuantity?.id === item.id ? (
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-3">
                           <input type="number" min="0" value={editingQuantity.value}
                             onChange={e => setEditingQuantity({ ...editingQuantity, value: e.target.value })}
                             onKeyDown={e => {
