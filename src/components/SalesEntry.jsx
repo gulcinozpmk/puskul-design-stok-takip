@@ -864,7 +864,10 @@ export default function SalesEntry() {
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center justify-between">
+            {/* Sol: Son Satışlar başlığı */}
             <h2 className="text-lg font-semibold text-gray-800">Son Satışlar</h2>
+
+            {/* Orta: Tarih navigasyonu */}
             <div className="flex items-center gap-2 relative">
               <button
                 onClick={() => {
@@ -927,6 +930,26 @@ export default function SalesEntry() {
                 />
               )}
             </div>
+
+            {/* Sağ: Tümünü Stoktan Düş */}
+            {(() => {
+              const filteredSales = sales.filter(sale => {
+                const d = new Date(sale.created_at);
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                return dateStr === selectedDate;
+              });
+              const pendingCount = filteredSales.filter(s => !s.is_other_product && !s.stockDecreased).length;
+              if (pendingCount === 0) return <div className="w-48" />;
+              return (
+                <button onClick={handleDecreaseAllStock}
+                  className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                  </svg>
+                  Tümünü Stoktan Düş ({pendingCount})
+                </button>
+              );
+            })()}
           </div>
         </div>
 

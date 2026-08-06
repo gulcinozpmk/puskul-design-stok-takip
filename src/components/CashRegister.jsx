@@ -23,6 +23,30 @@ const fetchFromSupabase = async (path, options = {}) => {
     return text ? JSON.parse(text) : [];
 };
 
+const fetchAllFromSupabase = async (path) => {
+    let allData = [];
+    let from = 0;
+    const pageSize = 1000;
+    while (true) {
+        const res = await fetch(
+            `${supabaseUrl}/rest/v1/${path}&offset=${from}&limit=${pageSize}`,
+            {
+                headers: {
+                    'apikey': supabaseKey,
+                    'Authorization': `Bearer ${supabaseKey}`,
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : [];
+        allData = [...allData, ...data];
+        if (data.length < pageSize) break;
+        from += pageSize;
+    }
+    return allData;
+};
+
 export default function CashRegister() {
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -108,7 +132,7 @@ export default function CashRegister() {
                 }, 0);
 
                 // O aydan önceki tüm hareketler
-                const prevMovements = await fetchFromSupabase(
+                const prevMovements = await fetchAllFromSupabase(
                     `cash_movements?date=lt.${startDate}&order=created_at.desc`
                 );
                 const prevExpense = prevMovements.filter(m => m.type === 'expense').reduce((sum, m) => sum + parseFloat(m.amount || 0), 0);
