@@ -950,7 +950,7 @@ export default function SalesEntry() {
             </div>
 
             {/* Sağ: Tümünü Stoktan Düş */}
-            {(() => {
+            {/* {(() => {
               const filteredSales = sales.filter(sale => {
                 const d = new Date(sale.created_at);
                 const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -967,7 +967,7 @@ export default function SalesEntry() {
                   Tümünü Stoktan Düş ({pendingCount})
                 </button>
               );
-            })()}
+            })()} */}
           </div>
         </div>
 
