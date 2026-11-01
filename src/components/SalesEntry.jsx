@@ -66,6 +66,12 @@ export default function SalesEntry() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
+
+  const changeDate = (d) => {
+    setSelectedDate(d);
+    setSaleDate(d);
+  };
+
   const [showSaleDateCalendar, setShowSaleDateCalendar] = useState(false);
 
   const [colorQuantities, setColorQuantities] = useState({});
@@ -532,6 +538,18 @@ export default function SalesEntry() {
                     </label>
                   </div>
                   {item.note && <p className="text-xs text-gray-500">{item.note}</p>}
+
+                  <p className={`text-xs mt-0.5 ${(() => {
+                    const t = new Date();
+                    const todayStr = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+                    return item.saleDate === todayStr ? 'text-gray-400' : 'text-red-500 font-semibold';
+                  })()}`}>
+                    📅 {(() => {
+                      const [y, m, d] = item.saleDate.split('-');
+                      return `${d}.${m}.${y}`;
+                    })()}
+                  </p>
+
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm text-gray-600">{item.quantity} adet</span>
@@ -873,7 +891,7 @@ export default function SalesEntry() {
                 onClick={() => {
                   const d = new Date(selectedDate);
                   d.setDate(d.getDate() - 1);
-                  setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+                  changeDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
                 }}
                 className="p-2 rounded-lg hover:bg-gray-200 transition text-gray-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -901,7 +919,7 @@ export default function SalesEntry() {
                   if (selectedDate >= todayStr) return;
                   const d = new Date(selectedDate);
                   d.setDate(d.getDate() + 1);
-                  setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+                  changeDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
                 }}
                 className={`p-2 rounded-lg transition ${(() => {
                   const today = new Date();
@@ -916,7 +934,7 @@ export default function SalesEntry() {
                 const today = new Date();
                 const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
                 return selectedDate !== todayStr ? (
-                  <button onClick={() => setSelectedDate(todayStr)}
+                  <button onClick={() => changeDate(todayStr)}
                     className="px-3 py-2 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium">
                     Bugün
                   </button>
@@ -925,7 +943,7 @@ export default function SalesEntry() {
               {showCalendar && (
                 <CalendarPopup
                   selectedDate={selectedDate}
-                  onSelect={setSelectedDate}
+                  onSelect={changeDate}
                   onClose={() => setShowCalendar(false)}
                 />
               )}
