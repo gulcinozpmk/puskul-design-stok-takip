@@ -1,232 +1,256 @@
-  import React, { useState, useEffect } from 'react';
-  import {
-    addSale,
-    getSales,
-    getSalesByDate,
-    getBrands,
-    getModelsByBrand,
-    getColorCodesByBrandModel,
-    getStock,
-    decreaseStock,
-    updateSale,
-    deleteSale,
-    updateStock
-  } from '../services/supabaseStorage';
-  import { formatCurrency, formatDate } from '../utils/helpers';
-  import QRScanner from './QRScanner';
-  import CalendarPopup from './CalendarPopup';
+import React, { useState, useEffect } from 'react';
+import {
+  addSale,
+  getSales,
+  getSalesByDate,
+  getBrands,
+  getModelsByBrand,
+  getColorCodesByBrandModel,
+  getStock,
+  decreaseStock,
+  updateSale,
+  deleteSale,
+  updateStock
+} from '../services/supabaseStorage';
+import { formatCurrency, formatDate } from '../utils/helpers';
+import QRScanner from './QRScanner';
+import CalendarPopup from './CalendarPopup';
 
-  export default function SalesEntry() {
-    const [brands, setBrands] = useState([]);
-    const [selectedBrand, setSelectedBrand] = useState('');
-    const [models, setModels] = useState([]);
-    const [selectedModel, setSelectedModel] = useState('');
-    const [colorCodes, setColorCodes] = useState([]);
-    const [selectedColorCode, setSelectedColorCode] = useState('');
-    const [selectedColorCodes, setSelectedColorCodes] = useState([]);
-    const [showColorDropdown, setShowColorDropdown] = useState(false);
-    const [selectedProduct, setSelectedProduct] = useState(null);
+const OTHER_CATEGORIES = [
+  'Yabalı İğne',
+  'Lastik',
+  'Drima Makara',
+  'Çanta Malzemesi',
+  'Tuhafiye Malzemesi',
+  'İhraç Fazlası',
+  'Astar Dikimi',
+  'Koreka Rafya',
+  'Macreme İp',
+  'Knit Pro Malz',
+  'Diğer Malzemeler',
+];
 
-    const [quantity, setQuantity] = useState(1);
-    const [amount, setAmount] = useState('');
-    const [paymentType, setPaymentType] = useState('Nakit');
-    const [note, setNote] = useState('');
+export default function SalesEntry() {
+  const [brands, setBrands] = useState([]);
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [colorCodes, setColorCodes] = useState([]);
+  const [selectedColorCode, setSelectedColorCode] = useState('');
+  const [selectedColorCodes, setSelectedColorCodes] = useState([]);
+  const [showColorDropdown, setShowColorDropdown] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
-    const [isOtherProduct, setIsOtherProduct] = useState(false);
-    const [otherDescription, setOtherDescription] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [amount, setAmount] = useState('');
+  const [paymentType, setPaymentType] = useState('Nakit');
+  const [note, setNote] = useState('');
 
-    const [sales, setSales] = useState([]);
-    const [todaySales, setTodaySales] = useState({ total: 0, cash: 0, card: 0 });
+  const [isOtherProduct, setIsOtherProduct] = useState(false);
+  const [otherDescription, setOtherDescription] = useState('');
 
-    const [showQRScanner, setShowQRScanner] = useState(false);
-    const [qrStatus, setQrStatus] = useState(null);
+  const [sales, setSales] = useState([]);
+  const [todaySales, setTodaySales] = useState({ total: 0, cash: 0, card: 0 });
 
-    const [cart, setCart] = useState([]);
-    const [cartPaymentType, setCartPaymentType] = useState('Nakit');
-    const [isSavingCart, setIsSavingCart] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [qrStatus, setQrStatus] = useState(null);
 
-    const [showTotals, setShowTotals] = useState(false);
+  const [cart, setCart] = useState([]);
+  const [cartPaymentType, setCartPaymentType] = useState('Nakit');
+  const [isSavingCart, setIsSavingCart] = useState(false);
 
-    const cartTotal = cart.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+  const [showTotals, setShowTotals] = useState(false);
 
-    const [isSplitPayment, setIsSplitPayment] = useState(false);
-    const [cardAmount, setCardAmount] = useState('');
-    const cashAmount = isSplitPayment ? Math.max(0, cartTotal - (parseFloat(cardAmount) || 0)) : 0;
+  const cartTotal = cart.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
 
-    const [editingId, setEditingId] = useState(null);
-    const [editValues, setEditValues] = useState({});
+  const [isSplitPayment, setIsSplitPayment] = useState(false);
+  const [cardAmount, setCardAmount] = useState('');
+  const cashAmount = isSplitPayment ? Math.max(0, cartTotal - (parseFloat(cardAmount) || 0)) : 0;
 
-    const [selectedDate, setSelectedDate] = useState(() => {
-      const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    });
-    const [showCalendar, setShowCalendar] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editValues, setEditValues] = useState({});
 
-    const [saleDate, setSaleDate] = useState(() => {
-      const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    });
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+  const [showCalendar, setShowCalendar] = useState(false);
 
-    const changeDate = (d) => {
-      setSelectedDate(d);
-      setSaleDate(d);
+  const [saleDate, setSaleDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  });
+
+  const changeDate = (d) => {
+    setSelectedDate(d);
+    setSaleDate(d);
+  };
+
+  const [showSaleDateCalendar, setShowSaleDateCalendar] = useState(false);
+
+  const [colorQuantities, setColorQuantities] = useState({});
+
+  // Dışına tıklayınca renk dropdown'ı kapat
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.color-dropdown-container')) {
+        setShowColorDropdown(false);
+      }
     };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-    const [showSaleDateCalendar, setShowSaleDateCalendar] = useState(false);
+  useEffect(() => { loadData(); }, [selectedDate]);
 
-    const [colorQuantities, setColorQuantities] = useState({});
+  const loadData = async () => {
+    const freshSales = await getSalesByDate(selectedDate);
+    const freshBrands = await getBrands();
+    setSales([...freshSales]);
+    setBrands([...freshBrands]);
+    calculateTodaySales(freshSales);
+  };
 
-    // Dışına tıklayınca renk dropdown'ı kapat
-    useEffect(() => {
-      const handleClickOutside = (e) => {
-        if (!e.target.closest('.color-dropdown-container')) {
-          setShowColorDropdown(false);
-        }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+  const calculateTodaySales = (salesData) => {
+    const total = salesData.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+    const cash = salesData.reduce((sum, s) => {
+      if (s.paymentType === 'Nakit') return sum + parseFloat(s.amount || 0);
+      if (s.paymentType === 'Karma') return sum + parseFloat(s.cashamount || 0);
+      return sum;
+    }, 0);
+    const card = salesData.reduce((sum, s) => {
+      if (s.paymentType === 'Kredi Kartı') return sum + parseFloat(s.amount || 0);
+      if (s.paymentType === 'Karma') return sum + parseFloat(s.cardamount || 0);
+      return sum;
+    }, 0);
+    setTodaySales({ total, cash, card });
+  };
 
-    useEffect(() => { loadData(); }, [selectedDate]);
+  const [otherCategory, setOtherCategory] = useState('');
+  const [otherCustomText, setOtherCustomText] = useState('');
 
-    const loadData = async () => {
-      const freshSales = await getSalesByDate(selectedDate);
-      const freshBrands = await getBrands();
-      setSales([...freshSales]);
-      setBrands([...freshBrands]);
-      calculateTodaySales(freshSales);
-    };
-
-    const calculateTodaySales = (salesData) => {
-      const total = salesData.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
-      const cash = salesData.reduce((sum, s) => {
-        if (s.paymentType === 'Nakit') return sum + parseFloat(s.amount || 0);
-        if (s.paymentType === 'Karma') return sum + parseFloat(s.cashamount || 0);
-        return sum;
-      }, 0);
-      const card = salesData.reduce((sum, s) => {
-        if (s.paymentType === 'Kredi Kartı') return sum + parseFloat(s.amount || 0);
-        if (s.paymentType === 'Karma') return sum + parseFloat(s.cardamount || 0);
-        return sum;
-      }, 0);
-      setTodaySales({ total, cash, card });
-    };
-
-    useEffect(() => {
-      const loadModels = async () => {
-        if (selectedBrand) {
-          const brandModels = await getModelsByBrand(selectedBrand);
-          setModels(brandModels);
-          setSelectedModel(prev => prev || '');
-          setColorCodes([]);
-          setSelectedColorCodes([]);
-          setSelectedColorCode(prev => prev || '');
-          setSelectedProduct(null);
-          setAmount('');
-          setShowColorDropdown(false);
-        } else {
-          setModels([]); setSelectedModel(''); setColorCodes([]);
-          setSelectedColorCodes([]); setSelectedColorCode(''); setSelectedProduct(null);
-          setShowColorDropdown(false);
-        }
-      };
-      loadModels();
-    }, [selectedBrand]);
-
-    useEffect(() => {
-      const loadColorCodes = async () => {
-        if (selectedBrand && selectedModel) {
-          const colors = await getColorCodesByBrandModel(selectedBrand, selectedModel);
-          setColorCodes(colors);
-          setSelectedColorCodes([]);
-          setSelectedColorCode('');
-          setSelectedProduct(null);
-          setAmount('');
-          setShowColorDropdown(false);
-          setColorQuantities({});
-        } else {
-          setColorCodes([]);
-          setSelectedColorCodes([]);
-          setSelectedColorCode('');
-          setSelectedProduct(null);
-          setShowColorDropdown(false);
-        }
-      };
-      loadColorCodes();
-    }, [selectedModel]);
-
-    useEffect(() => {
-      if (selectedColorCode) {
-        const product = colorCodes.find(p => p.colorCode === selectedColorCode);
-        setSelectedProduct(product);
-        if (product?.price && product.price > 0) {
-          setAmount((product.price * (parseInt(quantity) || 1)).toFixed(2));
-        }
-      } else {
+  useEffect(() => {
+    const loadModels = async () => {
+      if (selectedBrand) {
+        const brandModels = await getModelsByBrand(selectedBrand);
+        setModels(brandModels);
+        setSelectedModel(prev => prev || '');
+        setColorCodes([]);
+        setSelectedColorCodes([]);
+        setSelectedColorCode(prev => prev || '');
         setSelectedProduct(null);
-      }
-    }, [selectedColorCode, colorCodes]);
-
-    useEffect(() => {
-      calculateTodaySales(sales);
-    }, [selectedDate, sales]);
-
-    const handleQRScan = async (rawValue) => {
-      setShowQRScanner(false);
-      setQrStatus(null);
-      try {
-        const allStock = await getStock();
-        let found = allStock.find(p => p.barcode === rawValue.trim());
-        if (!found && rawValue.includes('|')) {
-          const parts = rawValue.split('|');
-          if (parts.length >= 3) {
-            const [qrBrand, qrModel, qrColor] = parts;
-            found = allStock.find(p =>
-              p.brand?.toLowerCase() === qrBrand.trim().toLowerCase() &&
-              p.model?.toLowerCase() === qrModel.trim().toLowerCase() &&
-              p.colorCode?.toLowerCase() === qrColor.trim().toLowerCase()
-            );
-          }
-        }
-        if (!found) found = allStock.find(p => p.colorCode?.toLowerCase() === rawValue.trim().toLowerCase());
-
-        if (found) {
-          setIsOtherProduct(false);
-          const brandModels = await getModelsByBrand(found.brand);
-          const colors = await getColorCodesByBrandModel(found.brand, found.model);
-          setModels(brandModels); setColorCodes(colors);
-          setSelectedBrand(found.brand); setSelectedModel(found.model);
-          setSelectedColorCode(found.colorCode);
-          setSelectedColorCodes([found.colorCode]);
-          setSelectedProduct(found);
-          if (found.price && found.price > 0) setAmount(found.price.toString());
-          setQrStatus({ type: 'success', message: `✅ Ürün bulundu: ${found.brand} - ${found.model} - ${found.colorCode}` });
-        } else {
-          setQrStatus({ type: 'error', message: `❌ "${rawValue}" — stokta eşleşen ürün bulunamadı.` });
-        }
-      } catch (err) {
-        setQrStatus({ type: 'error', message: `Hata oluştu: ${err.message}` });
-      }
-    };
-
-    const resetForm = () => {
-      setSelectedBrand(''); setSelectedModel(''); setSelectedColorCode('');
-      setSelectedColorCodes([]); setShowColorDropdown(false);
-      setSelectedProduct(null); setQuantity(1); setAmount('');
-      setNote(''); setIsOtherProduct(false); setOtherDescription(''); setQrStatus(null);
-      setColorQuantities({});
-    };
-
-    const handleAddToCart = (e) => {
-      e.preventDefault();
-      if (isOtherProduct) {
-        if (!otherDescription || !amount) { alert('Lütfen açıklama ve tutar girin!'); return; }
+        setAmount('');
+        setShowColorDropdown(false);
       } else {
-        if (!selectedBrand || !selectedModel || selectedColorCodes.length === 0) {
-          alert('Lütfen en az bir renk kodu seçin!'); return;
-        }
-        if (!amount) { alert('Lütfen tutar girin!'); return; }
+        setModels([]); setSelectedModel(''); setColorCodes([]);
+        setSelectedColorCodes([]); setSelectedColorCode(''); setSelectedProduct(null);
+        setShowColorDropdown(false);
       }
+    };
+    loadModels();
+  }, [selectedBrand]);
+
+  useEffect(() => {
+    const loadColorCodes = async () => {
+      if (selectedBrand && selectedModel) {
+        const colors = await getColorCodesByBrandModel(selectedBrand, selectedModel);
+        setColorCodes(colors);
+        setSelectedColorCodes([]);
+        setSelectedColorCode('');
+        setSelectedProduct(null);
+        setAmount('');
+        setShowColorDropdown(false);
+        setColorQuantities({});
+      } else {
+        setColorCodes([]);
+        setSelectedColorCodes([]);
+        setSelectedColorCode('');
+        setSelectedProduct(null);
+        setShowColorDropdown(false);
+      }
+    };
+    loadColorCodes();
+  }, [selectedModel]);
+
+  useEffect(() => {
+    if (selectedColorCode) {
+      const product = colorCodes.find(p => p.colorCode === selectedColorCode);
+      setSelectedProduct(product);
+      if (product?.price && product.price > 0) {
+        setAmount((product.price * (parseInt(quantity) || 1)).toFixed(2));
+      }
+    } else {
+      setSelectedProduct(null);
+    }
+  }, [selectedColorCode, colorCodes]);
+
+  useEffect(() => {
+    calculateTodaySales(sales);
+  }, [selectedDate, sales]);
+
+  const handleQRScan = async (rawValue) => {
+    setShowQRScanner(false);
+    setQrStatus(null);
+    try {
+      const allStock = await getStock();
+      let found = allStock.find(p => p.barcode === rawValue.trim());
+      if (!found && rawValue.includes('|')) {
+        const parts = rawValue.split('|');
+        if (parts.length >= 3) {
+          const [qrBrand, qrModel, qrColor] = parts;
+          found = allStock.find(p =>
+            p.brand?.toLowerCase() === qrBrand.trim().toLowerCase() &&
+            p.model?.toLowerCase() === qrModel.trim().toLowerCase() &&
+            p.colorCode?.toLowerCase() === qrColor.trim().toLowerCase()
+          );
+        }
+      }
+      if (!found) found = allStock.find(p => p.colorCode?.toLowerCase() === rawValue.trim().toLowerCase());
+
+      if (found) {
+        setIsOtherProduct(false);
+        const brandModels = await getModelsByBrand(found.brand);
+        const colors = await getColorCodesByBrandModel(found.brand, found.model);
+        setModels(brandModels); setColorCodes(colors);
+        setSelectedBrand(found.brand); setSelectedModel(found.model);
+        setSelectedColorCode(found.colorCode);
+        setSelectedColorCodes([found.colorCode]);
+        setSelectedProduct(found);
+        if (found.price && found.price > 0) setAmount(found.price.toString());
+        setQrStatus({ type: 'success', message: `✅ Ürün bulundu: ${found.brand} - ${found.model} - ${found.colorCode}` });
+      } else {
+        setQrStatus({ type: 'error', message: `❌ "${rawValue}" — stokta eşleşen ürün bulunamadı.` });
+      }
+    } catch (err) {
+      setQrStatus({ type: 'error', message: `Hata oluştu: ${err.message}` });
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedBrand(''); setSelectedModel(''); setSelectedColorCode('');
+    setSelectedColorCodes([]); setShowColorDropdown(false);
+    setSelectedProduct(null); setQuantity(1); setAmount('');
+    setNote(''); setIsOtherProduct(false); setOtherDescription(''); setOtherCategory(''); setOtherCustomText(''); setQrStatus(null);
+    setColorQuantities({});
+  };
+
+  const handleAddToCart = (e) => {
+    e.preventDefault();
+    const finalDescription = otherCategory === 'Diğer Malzemeler'
+      ? `Diğer Malzemeler (${otherCustomText.trim()})`
+      : otherCategory;
+
+    if (isOtherProduct) {
+      if (!otherCategory || !amount) { alert('Lütfen kategori ve tutar girin!'); return; }
+      if (otherCategory === 'Diğer Malzemeler' && !otherCustomText.trim()) {
+        alert('Lütfen açıklama yazın!'); return;
+      }
+    } else { 
+      if (!selectedBrand || !selectedModel || selectedColorCodes.length === 0) {
+        alert('Lütfen en az bir renk kodu seçin!'); return;
+      }
+      if (!amount) { alert('Lütfen tutar girin!'); return; }
+    }
 
       if (!isOtherProduct && selectedColorCodes.length > 1) {
         const items = selectedColorCodes.map(colorCode => {
@@ -257,7 +281,7 @@
           note,
           is_other_product: isOtherProduct,
           is_return: false,
-          description: isOtherProduct ? otherDescription : null,
+          description: isOtherProduct ? finalDescription : null,
           brand: isOtherProduct ? null : selectedBrand,
           model: isOtherProduct ? null : selectedModel,
           colorCode: isOtherProduct ? null : colorCode,
@@ -826,11 +850,23 @@
                 )}
               </>
             ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Açıklama *</label>
-                <input type="text" value={otherDescription} onChange={(e) => setOtherDescription(e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Örn: 2 adet - çanta sapı" required />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Kategori *</label>
+                  <select value={otherCategory} onChange={(e) => setOtherCategory(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                    <option value="">Kategori Seçin</option>
+                    {OTHER_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </div>
+                {otherCategory === 'Diğer Malzemeler' && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Açıklama *</label>
+                    <input type="text" value={otherCustomText} onChange={(e) => setOtherCustomText(e.target.value)}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Örn: düğme" required />
+                  </div>
+                )}
               </div>
             )}
 
@@ -1167,7 +1203,7 @@
             );
           })()}
 
-          {false &&(() => {
+          {false && (() => {
             const filteredSales = sales.filter(sale => {
               const d = new Date(sale.created_at);
               const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
