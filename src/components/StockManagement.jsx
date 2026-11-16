@@ -50,6 +50,10 @@ export default function StockManagement() {
 
   const [editingQuantity, setEditingQuantity] = useState(null); // { id, value }
 
+  const [editingPrice, setEditingPrice] = useState(null); // { id, value }
+  const [priceMode, setPriceMode] = useState('model'); // 'model' veya 'color'
+  const [colorPrices, setColorPrices] = useState({});
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
@@ -106,10 +110,12 @@ export default function StockManagement() {
         setPriceUpdateModels(brandModels);
         setPriceUpdateModel('');
         setNewPrices({}); // Marka değişince sıfırla
+        setColorPrices({});
       } else {
         setPriceUpdateModels([]);
         setPriceUpdateModel('');
         setNewPrices({});
+        setColorPrices({});
       }
     };
     loadPriceModels();
@@ -270,6 +276,22 @@ export default function StockManagement() {
     }
   };
 
+  const handleColorPriceUpdate = async () => {
+    const updates = Object.entries(colorPrices).filter(([_, v]) => v !== '');
+    if (updates.length === 0) return;
+    if (!confirm(`${updates.length} rengin/kalınlığın fiyatı güncellenecek. Onaylıyor musunuz?`)) return;
+    try {
+      for (const [id, price] of updates) {
+        await updateStock(Number(id), { price: parseFloat(price) });
+      }
+      await loadData();
+      setColorPrices({});
+      alert(`${updates.length} ürün güncellendi!`);
+    } catch (error) {
+      alert('Hata: ' + error.message);
+    }
+  };
+
   //Export Excel
   const handleExportExcel = () => {
     import('xlsx').then(XLSX => {
@@ -298,6 +320,17 @@ export default function StockManagement() {
       await updateStock(item.id, { quantity: newQty });
       await loadData();
       setEditingQuantity(null);
+    } catch (error) {
+      alert('Hata: ' + error.message);
+    }
+  };
+  const handlePriceSave = async (item) => {
+    const newPrice = parseFloat(editingPrice.value);
+    if (isNaN(newPrice) || newPrice < 0) { alert('Geçerli bir fiyat girin!'); return; }
+    try {
+      await updateStock(item.id, { price: newPrice });
+      await loadData();
+      setEditingPrice(null);
     } catch (error) {
       alert('Hata: ' + error.message);
     }
@@ -439,7 +472,28 @@ export default function StockManagement() {
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-sm text-right text-gray-800">{formatCurrency(item.price)}</td>
+                    <td className="py-3 px-4 text-sm text-right text-gray-800">
+                      {editingPrice?.id === item.id ? (
+                        <div className="flex items-center justify-end gap-3">
+                          <input type="number" step="0.01" min="0" value={editingPrice.value}
+                            onChange={e => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handlePriceSave(item);
+                              if (e.key === 'Escape') setEditingPrice(null);
+                            }}
+                            className="w-20 px-2 py-1 text-right border border-blue-400 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                            autoFocus />
+                          <button onClick={() => handlePriceSave(item)} className="text-green-600 hover:text-green-800 font-bold">✓</button>
+                          <button onClick={() => setEditingPrice(null)} className="text-red-400 hover:text-red-600 font-bold">✕</button>
+                        </div>
+                      ) : (
+                        <span onClick={() => setEditingPrice({ id: item.id, value: item.price })}
+                          className="cursor-pointer px-2 py-1 rounded hover:ring-2 hover:ring-blue-400 transition"
+                          title="Düzenlemek için tıkla">
+                          {formatCurrency(item.price)}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
                       {formatCurrency(item.quantity * item.price)}
                     </td>
@@ -626,7 +680,21 @@ export default function StockManagement() {
               {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
             </select>
           </div>
-          {priceUpdateBrand && (() => {
+
+          {priceUpdateBrand && (
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setPriceMode('model')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold ${priceMode === 'model' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                Model bazında (hepsi aynı)
+              </button>
+              <button onClick={() => setPriceMode('color')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold ${priceMode === 'color' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                Renk / kalınlık bazında
+              </button>
+            </div>
+          )}
+
+          {priceUpdateBrand && priceMode === 'model' && (() => {
             const brandModels = [...new Set(stock.filter(s => s.brand === priceUpdateBrand).map(s => s.model))].sort();
             return brandModels.length === 0 ? (
               <p className="text-gray-500 text-sm">Bu markaya ait model bulunamadı.</p>
@@ -644,17 +712,18 @@ export default function StockManagement() {
                     </thead>
                     <tbody>
                       {brandModels.map((model, index) => {
-                        const sample = stock.find(s => s.brand === priceUpdateBrand && s.model === model);
-                        const colorCount = stock.filter(s => s.brand === priceUpdateBrand && s.model === model).length;
-                        const currentPrice = sample?.price || 0;
+                        const modelItems = stock.filter(s => s.brand === priceUpdateBrand && s.model === model);
+                        const colorCount = modelItems.length;
+                        const prices = modelItems.map(s => s.price || 0);
+                        const minP = Math.min(...prices);
+                        const maxP = Math.max(...prices);
+                        const priceText = minP === maxP ? formatCurrency(minP) : `${formatCurrency(minP)} - ${formatCurrency(maxP)}`;
                         return (
                           <tr key={model} className={`border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                             <td className="py-3 px-4 text-sm font-medium text-gray-800">{model}</td>
                             <td className="py-3 px-4 text-sm text-center text-gray-600">{colorCount} renk</td>
                             <td className="py-3 px-4 text-sm text-right">
-                              <span className="text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg text-sm">
-                                {formatCurrency(currentPrice)}
-                              </span>
+                              <span className="text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg text-sm">{priceText}</span>
                             </td>
                             <td className="py-3 px-4 text-right">
                               <input type="number" step="0.01" min="0"
@@ -680,6 +749,57 @@ export default function StockManagement() {
                   disabled={!Object.values(newPrices).some(v => v !== '')}
                   className="mt-4 w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition">
                   💰 Toplu Fiyat Güncelle
+                </button>
+              </>
+            );
+          })()}
+
+          {priceUpdateBrand && priceMode === 'color' && (() => {
+            const items = stock
+              .filter(s => s.brand === priceUpdateBrand && (priceUpdateModel === '' || s.model === priceUpdateModel))
+              .sort((a, b) => a.model.localeCompare(b.model) || String(a.colorCode).localeCompare(String(b.colorCode), 'tr', { numeric: true }));
+            return (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Model</label>
+                  <select value={priceUpdateModel} onChange={e => setPriceUpdateModel(e.target.value)}
+                    className="w-full max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-lg">
+                    <option value="">Tüm Modeller</option>
+                    {priceUpdateModels.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Model</th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Renk / Kalınlık</th>
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Mevcut Fiyat</th>
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Yeni Fiyat</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item, index) => (
+                        <tr key={item.id} className={`border-t border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                          <td className="py-2 px-4 text-sm text-gray-800">{item.model}</td>
+                          <td className="py-2 px-4 text-sm text-gray-800">{item.colorCode}</td>
+                          <td className="py-2 px-4 text-sm text-right text-gray-500">{formatCurrency(item.price)}</td>
+                          <td className="py-2 px-4 text-right">
+                            <input type="number" step="0.01" min="0"
+                              value={colorPrices[item.id] ?? ''}
+                              onChange={e => setColorPrices(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              className="w-28 px-3 py-1.5 text-sm border border-purple-300 rounded-lg text-right"
+                              placeholder="Değiştir..." />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button onClick={handleColorPriceUpdate}
+                  disabled={!Object.values(colorPrices).some(v => v !== '')}
+                  className="mt-4 w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-semibold py-3 rounded-lg transition">
+                  💰 Seçilenlerin Fiyatını Güncelle
                 </button>
               </>
             );
